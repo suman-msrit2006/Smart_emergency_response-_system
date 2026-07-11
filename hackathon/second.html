@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>🏥 Bangalore Emergency Hospital Dashboard</title>
+  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <style>
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+    }
+    #map {
+      height: 600px;
+      border-radius: 15px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      margin-bottom: 20px;
+    }
+    .control-panel {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(15px);
+      border-radius: 20px;
+      padding: 30px;
+      box-shadow: 0 15px 50px rgba(0, 0, 0, 0.2);
+      margin-bottom: 30px;
+    }
+    .hospital-ready {
+      background: linear-gradient(135deg, #e74c3c, #c0392b) !important;
+      color: white;
+      animation: pulse 2s infinite;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 15px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .hospital-ready:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+    }
+    .hospital-selected {
+      background: linear-gradient(135deg, #27ae60, #2ecc71) !important;
+      animation: none !important;
+      border-left: 6px solid #f1c40f !important;
+      box-shadow: 0 10px 30px rgba(39, 174, 96, 0.4) !important;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+    .stats-card {
+      background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+      color: white;
+      border-radius: 15px;
+      padding: 25px;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .stat-number {
+      font-size: 2.5rem;
+      font-weight: bold;
+    }
+    .hospital-list {
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+      padding: 25px;
+    }
+    .accept-btn {
+      background: linear-gradient(135deg, #27ae60, #2ecc71) !important;
+      border: none !important;
+      font-weight: bold;
+      padding: 12px 30px;
+      border-radius: 25px;
+      display: none;
+    }
+    .accept-btn.show {
+      display: inline-block !important;
+      animation: bounce 1s infinite;
+    }
+    @keyframes bounce {
+      0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+      40% { transform: translateY(-5px); }
+      60% { transform: translateY(-3px); }
+    }
+    .list-item-best {
+      border-left: 6px solid #e74c3c !important;
+      background: linear-gradient(90deg, #f1c40f, #f39c12) !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="container py-5">
+    <h1 class="text-white text-center mb-4">🏥 Bangalore Emergency Hospitals</h1>
+    <p class="text-white text-center lead mb-5">Choose hospital directly OR enter location → Select ONE → Accept</p>
+
+    <!-- Control Panel with Dropdown + Location -->
+    <div class="control-panel">
+      <div class="row g-4 mb-4">
+        <div class="col-md-6">
+          <label for="hospitalSelect" class="form-label fs-4 fw-bold text-dark mb-3">
+            🏥 Choose Hospital Directly
+          </label>
+          <select id="hospitalSelect" class="form-select form-select-lg">
+            <option value="">-- Select Any Hospital --</option>
+            <option value="H001">Apollo Hospital (Bannerghatta)</option>
+            <option value="H002">Manipal Hospital (Old Airport Road)</option>
+            <option value="H003">Sakra World Hospital (Bellandur)</option>
+            <option value="H004">Fortis Hospital (Bannerghatta)</option>
+            <option value="H005">Columbia Asia (Hebbal)</option>
+            <option value="H006">Vydehi Hospital (Whitefield)</option>
+            <option value="H007">Sparsh Hospital (Yeswanthpur)</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label for="patientLocation" class="form-label fs-4 fw-bold text-dark mb-3">
+            📍 OR Patient Location
+          </label>
+          <input type="text" id="patientLocation" class="form-control form-control-lg" 
+                 placeholder="Koramangala, Whitefield, etc." />
+        </div>
+      </div>
+      
+      <div class="text-center">
+        <button id="selectDirectHospital" class="btn btn-success btn-lg px-5 me-3 py-3 fs-5">
+          ✅ SELECT CHOSEN HOSPITAL
+        </button>
+        <button id="searchHospitalsBtn" class="btn btn-danger btn-lg px-5 py-3 fs-5">
+          🚨 FIND NEARBY HOSPITALS
+        </button>
+      </div>
+      
+      <div id="statusMsg" class="mt-4 p-3 rounded fw-bold bg-light text-center"></div>
+    </div>
+
+    <!-- Stats Panel -->
+    <div id="statsPanel" class="stats-card" style="display: none;">
+      <div class="row text-center">
+        <div class="col-md-4">
+          <div class="stat-number" id="totalHospitals">0</div>
+          <span>Nearby Hospitals</span>
+        </div>
+        <div class="col-md-4">
+          <div class="stat-number text-white" id="doctorsAvail">0</div>
+          <span>Available Doctors</span>
+        </div>
+        <div class="col-md-4">
+          <div class="stat-number text-white" id="selectedHospital">None</div>
+          <span>✅ Selected</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Map -->
+    <div id="map"></div>
+
+    <!-- Hospital List - Click to Select ONE -->
+    <div class="hospital-list">
+      <h4 class="mb-4 text-danger text-center">👇 Click ONE Hospital to Select 👇</h4>
+      <div id="hospitalList"></div>
+    </div>
+
+    <!-- Accept Button -->
+    <div class="text-center mt-4">
+      <button id="acceptHospitalBtn" class="btn accept-btn btn-success btn-lg px-5 py-3 fs-5">
+        ✅ ACCEPT SELECTED HOSPITAL & DISPATCH
+        <!-- Link to Ambulance Vitals page -->
+<div style="margin-top: 16px;">
+  <a href="third.html" class="btn btn-primary" style="padding: 10px 18px; text-decoration: none;">
+    Check vitals
+  </a>
+</div>
+
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const map = L.map("map").setView([12.9716, 77.5946], 12);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors",
+    }).addTo(map);
+
+    // Bangalore hospitals data
+    const hospitals = [
+      { id: "H001", name: "Apollo Hospital", lat: 12.907, lng: 77.597, doctors: 3 },
+      { id: "H002", name: "Manipal Hospital", lat: 12.95, lng: 77.62, doctors: 2 },
+      { id: "H003", name: "Sakra World Hospital", lat: 12.925, lng: 77.71, doctors: 4 },
+      { id: "H004", name: "Fortis Hospital", lat: 12.91, lng: 77.6, doctors: 3 },
+      { id: "H005", name: "Columbia Asia", lat: 12.9698, lng: 77.75, doctors: 2 },
+      { id: "H006", name: "Vydehi Hospital", lat: 12.98, lng: 77.74, doctors: 4 },
+      { id: "H007", name: "Sparsh Hospital", lat: 12.99, lng: 77.59, doctors: 3 },
+    ];
+
+    let patientMarker, hospitalMarkers = {}, selectedHospitalId = null;
+
+    const icons = {
+      patient: L.divIcon({
+        html: '🚨<div style="background:#e74c3c;color:white;font-weight:bold;padding:4px 10px;border-radius:12px;font-size:12px;margin-top:5px">PATIENT</div>',
+        iconSize: [55, 70],
+        iconAnchor: [27, 70],
+      }),
+      hospital: L.divIcon({
+        html: '🏥<div style="background:#27ae60;color:white;font-weight:bold;padding:4px 10px;border-radius:12px;font-size:12px;margin-top:5px">DOCTORS</div>',
+        iconSize: [60, 75],
+        iconAnchor: [30, 75],
+      }),
+      selected: L.divIcon({
+        html: '⭐<div style="background:#f39c12;color:white;font-weight:bold;padding:4px 12px;border-radius:12px;font-size:12px;margin-top:5px">SELECTED</div>',
+        iconSize: [65, 80],
+        iconAnchor: [32, 80],
+      })
+    };
+
+    // 1. Direct Hospital Selection from Dropdown
+    document.getElementById("selectDirectHospital").onclick = () => {
+      const hospitalId = document.getElementById("hospitalSelect").value;
+      if (!hospitalId) {
+        showStatus("Please select a hospital from dropdown", "warning");
+        return;
+      }
+      selectHospital(hospitalId);
+    };
+
+    // 2. Search Nearby Hospitals (Original functionality)
+    document.getElementById("searchHospitalsBtn").onclick = async () => {
+      const locInput = document.getElementById("patientLocation").value.trim();
+      const statusEl = document.getElementById("statusMsg");
+      
+      if (!locInput) {
+        statusEl.className = "alert alert-warning";
+        statusEl.textContent = "Please enter patient location.";
+        return;
+      }
+
+      statusEl.className = "alert alert-info";
+      statusEl.textContent = "🔍 Finding nearby hospitals...";
+
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+            locInput + ", Bangalore, India"
+          )}&limit=1&countrycodes=in&viewbox=77.4,12.8,77.8,13.2&bounded=1`
+        );
+        const data = await res.json();
+
+        if (!data[0]) {
+          statusEl.className = "alert alert-danger";
+          statusEl.textContent = "Location not found. Try 'Koramangala' or 'Whitefield'.";
+          return;
+        }
+
+        const lat = parseFloat(data[0].lat);
+        const lng = parseFloat(data[0].lon);
+        
+        if (lat < 12.8 || lat > 13.2 || lng < 77.4 || lng > 77.8) {
+          statusEl.className = "alert alert-danger";
+          statusEl.textContent = "Please enter a Bangalore location.";
+          return;
+        }
+
+        // Clear previous markers
+        clearMap();
+        patientMarker = L.marker([lat, lng], { icon: icons.patient })
+          .bindPopup("🚨 Patient Location")
+          .addTo(map);
+
+        findNearbyHospitals(lat, lng);
+        
+      } catch (e) {
+        statusEl.className = "alert alert-danger";
+        statusEl.textContent = "Error finding location. Please try again.";
+      }
+    };
+
+    // 3. Select hospital from list or map (MANDATORY ONE SELECTION)
+    function selectHospital(hospitalId) {
+      if (selectedHospitalId === hospitalId) return;
+      
+      selectedHospitalId = hospitalId;
+      const hospital = hospitals.find(h => h.id === hospitalId);
+      
+      // Update stats
+      document.getElementById("selectedHospital").textContent = hospital.name;
+      document.getElementById("statsPanel").style.display = "block";
+      
+      // Update list highlighting
+      updateHospitalList();
+      
+      // Update map
+      clearMap();
+      if (patientMarker) map.addLayer(patientMarker);
+      
+      const marker = L.marker([hospital.lat, hospital.lng], { icon: icons.selected })
+        .bindPopup(`⭐ ${hospital.name}<br>Doctors: ${hospital.doctors}`);
+      marker.addTo(map);
+      hospitalMarkers[hospital.id] = marker;
+      
+      map.setView([hospital.lat, hospital.lng], 14);
+      
+      // Show accept button
+      document.getElementById("acceptHospitalBtn").classList.add("show");
+      
+      showStatus(`✅ ${hospital.name} selected! Click ACCEPT to confirm.`, "success");
+    }
+
+    // 4. ACCEPT final selection (MANDATORY)
+    document.getElementById("acceptHospitalBtn").onclick = () => {
+      if (!selectedHospitalId) {
+        showStatus("Please select ONE hospital first!", "warning");
+        return;
+      }
+      
+      const hospital = hospitals.find(h => h.id === selectedHospitalId);
+      showStatus(`🎉 ${hospital.name} ACCEPTED! Ambulance dispatched. ${hospital.doctors} doctors ready.`, "success");
+      
+      // Disable further selection
+      document.getElementById("acceptHospitalBtn").innerHTML = 
+        `<i class="fas fa-check-circle"></i> ${hospital.name} CONFIRMED`;
+      document.getElementById("acceptHospitalBtn").classList.remove("show");
+    };
+
+    function findNearbyHospitals(patientLat, patientLng) {
+      hospitals.forEach(h => {
+        h.distance = calculateDistance(patientLat, patientLng, h.lat, h.lng);
+      });
+
+      const nearbyHospitals = hospitals
+        .filter(h => h.distance <= 12 && h.doctors > 0)
+        .sort((a, b) => a.distance - b.distance);
+
+      // Add clickable markers
+      nearbyHospitals.forEach(hosp => {
+        const marker = L.marker([hosp.lat, hosp.lng], { icon: icons.hospital })
+          .bindPopup(`🏥 ${hosp.name}<br>Distance: ${hosp.distance.toFixed(1)} km<br>Doctors: ${hosp.doctors}`)
+          .on('click', () => selectHospital(hosp.id));
+        marker.addTo(map);
+        hospitalMarkers[hosp.id] = marker;
+      });
+
+      document.getElementById("totalHospitals").textContent = nearbyHospitals.length;
+      document.getElementById("doctorsAvail").textContent = nearbyHospitals.reduce((sum, h) => sum + h.doctors, 0);
+
+      const bounds = L.latLngBounds([patientMarker.getLatLng()]);
+      Object.values(hospitalMarkers).forEach(marker => bounds.extend(marker.getLatLng()));
+      map.fitBounds(bounds.pad(0.2));
+
+      updateHospitalList(nearbyHospitals);
+      showStatus(`${nearbyHospitals.length} hospitals found. Click ONE to select.`, "success");
+    }
+
+    function updateHospitalList(nearbyHospitals = []) {
+      const listEl = document.getElementById("hospitalList");
+      if (nearbyHospitals.length === 0) {
+        listEl.innerHTML = '<p class="text-center text-muted mt-4">Search location to see hospitals</p>';
+        return;
+      }
+
+      listEl.innerHTML = nearbyHospitals.map((hosp, index) => `
+        <div class="hospital-ready list-group-item list-group-item-action mb-3 ${index === 0 ? 'list-item-best shadow-lg' : ''} ${selectedHospitalId === hosp.id ? 'hospital-selected' : ''}" 
+             onclick="selectHospital('${hosp.id}')">
+          <div class="d-flex w-100 justify-content-between align-items-center">
+            <div>
+              <h5 class="mb-2">${hosp.name}</h5>
+              <div class="fs-5 fw-bold mb-1">${hosp.distance.toFixed(1)} km away</div>
+              <span class="badge bg-light text-dark fs-6">${hosp.doctors} Doctors</span>
+            </div>
+            <button class="btn btn-light px-4">📞 Call</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function clearMap() {
+      Object.values(hospitalMarkers).forEach(m => {
+        if (m && map.hasLayer(m)) map.removeLayer(m);
+      });
+      hospitalMarkers = {};
+    }
+
+    function showStatus(message, type = 'info') {
+      const statusEl = document.getElementById("statusMsg");
+      statusEl.className = `alert alert-${type}`;
+      statusEl.textContent = message;
+    }
+
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = ((lat2 - lat1) * Math.PI) / 180;
+      const dLon = ((lon2 - lon1) * Math.PI) / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    // Enter key support
+    document.getElementById("patientLocation").addEventListener("keypress", (e) => {
+      if (e.key === "Enter") document.getElementById("searchHospitalsBtn").click();
+    });
+  </script>
+</body>
+</html>

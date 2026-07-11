@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>IoT Vital Monitoring</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    body { background:#f5f7fb; }
+    .card{border:none;box-shadow:0 2px 10px rgba(15,23,42,0.08);}
+    .vital-label{font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;}
+    .vital-value{font-size:1.4rem;font-weight:700;}
+    .vital-unit{font-size:.8rem;color:#6b7280;}
+    .status-pill{border-radius:999px;padding:.25rem .6rem;font-size:.75rem;}
+    .status-normal{background:#dcfce7;color:#166534;}
+    .status-warning{background:#fef9c3;color:#92400e;}
+    .status-critical{background:#fee2e2;color:#b91c1c;}
+    .chart-container{height:280px;}
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="#">
+      <i class="fa-solid fa-truck-medical me-2 text-danger"></i>
+      IOT Vitals
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link active" aria-current="page" href="#">IoT Vitals</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<div class="container py-4">
+  <!-- top row: title + patient name form + start button -->
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-3">
+    <div>
+      <h2 class="mb-1">IoT Vital Monitoring</h2>
+      <p class="text-muted mb-0">
+        Simulated real-time vitals from wearable sensors inside the ambulance (heart rate, SpO₂, temperature, blood pressure). [web:35][web:45]
+      </p>
+      <!-- Back to Hospital Selection page -->
+<div style="margin-bottom: 16px;">
+  <a href="second.html" class="btn btn-secondary" style="padding: 8px 16px; text-decoration: none;">
+    Back to Hospital Selection
+  </a>
+</div>
+
+    </div>
+    <form class="d-flex align-items-center gap-2">
+      <input id="patientNameInput" type="text" class="form-control form-control-sm"
+             placeholder="Enter patient name (e.g. Unknown Male 30yrs)" style="min-width:260px;">
+      <button id="toggleBtn" type="button" class="btn btn-success btn-sm">
+        <i class="fa-solid fa-play me-1"></i> Start Monitoring
+      </button>
+    </form>
+  </div>
+
+  <div class="row g-4">
+    <!-- Vitals card -->
+    <div class="col-md-4">
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="text-uppercase text-muted mb-0">Current Patient</h6>
+            <span id="statusPill" class="status-pill status-normal">Stable</span>
+          </div>
+          <h5 class="mb-1">
+            <span class="text-muted">Name:</span>
+            <span id="patientNameLabel" class="text-primary">Not set</span>
+          </h5>
+          <h6 class="text-muted mb-3 small">
+            Live stream from ambulance IoT hub – updated every second (simulated).
+          </h6>
+
+          <div class="border-top pt-3 mt-2">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div>
+                <div class="vital-label">Heart Rate</div>
+                <div class="vital-value">
+                  <span id="hrValue">--</span><span class="vital-unit"> bpm</span>
+                </div>
+              </div>
+              <i class="fa-solid fa-heart-pulse text-danger fs-3"></i>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div>
+                <div class="vital-label">SpO₂</div>
+                <div class="vital-value">
+                  <span id="spo2Value">--</span><span class="vital-unit"> %</span>
+                </div>
+              </div>
+              <i class="fa-solid fa-lungs text-primary fs-3"></i>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div>
+                <div class="vital-label">Temperature</div>
+                <div class="vital-value">
+                  <span id="tempValue">--</span><span class="vital-unit"> °C</span>
+                </div>
+              </div>
+              <i class="fa-solid fa-temperature-half text-warning fs-3"></i>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <div class="vital-label">Blood Pressure</div>
+                <div class="vital-value">
+                  <span id="bpValue">--/--</span><span class="vital-unit"> mmHg</span>
+                </div>
+              </div>
+              <i class="fa-solid fa-stethoscope text-success fs-3"></i>
+            </div>
+
+            <!-- NEW BUTTON ADDED HERE -->
+            <!-- Link to Doctor Consultation Portal -->
+<div style="margin: 16px 0;">
+  <a href="fourth.html" class="btn btn-primary" style="padding: 8px 16px; text-decoration: none;">
+    Doctor Consultation Portal
+  </a>
+</div>
+
+            
+
+          </div>
+        </div>
+      </div>
+
+      <div class="alert alert-info small">
+        In a real deployment, these values are pushed from IoT devices via MQTT/WebSocket to the hospital dashboard and stored in the EMR for later review. [web:36][web:38]
+      </div>
+    </div>
+
+    <!-- chart + saved records -->
+    <div class="col-md-8">
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Real-Time Vitals Graph</h5>
+            <span class="text-muted small">Last 30 seconds</span>
+          </div>
+          <p class="small text-muted">
+            Shows heart rate and SpO₂ trend; helps doctors detect sudden deterioration in transit. [web:34][web:45]
+          </p>
+          <div class="chart-container">
+            <canvas id="vitalsChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- saved table -->
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Saved Records (Local)</h5>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearTable()">
+              Clear Table
+            </button>
+          </div>
+          <p class="small text-muted mb-2">
+            Every second a new reading is logged with timestamp and patient name. Doctors can scroll, take a screenshot, or copy this table to Excel for reference. [web:36]
+          </p>
+          <div class="table-responsive" style="max-height:220px; overflow-y:auto;">
+            <table class="table table-sm table-hover align-middle mb-0" id="recordsTable">
+              <thead class="table-light">
+                <tr>
+                  <th>Time</th>
+                  <th>Patient</th>
+                  <th>HR (bpm)</th>
+                  <th>SpO₂ (%)</th>
+                  <th>Temp (°C)</th>
+                  <th>BP (mmHg)</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- rows added by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  const ctx = document.getElementById("vitalsChart").getContext("2d");
+  const MAX_POINTS = 30;
+  const chartData = {
+    labels: Array.from({length:MAX_POINTS},(_,i)=>"-"+(MAX_POINTS-i)+"s"),
+    datasets:[
+      { label:"Heart Rate (bpm)", data:Array(MAX_POINTS).fill(null),
+        borderColor:"#ef4444", backgroundColor:"rgba(239,68,68,0.15)", tension:0.3, fill:true },
+      { label:"SpO₂ (%)", data:Array(MAX_POINTS).fill(null),
+        borderColor:"#3b82f6", backgroundColor:"rgba(59,130,246,0.12)", tension:0.3, fill:true, yAxisID:"y1" }
+    ]
+  };
+  const vitalsChart = new Chart(ctx,{
+    type:"line",
+    data:chartData,
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:"top" } },
+      scales:{
+        y:{ title:{display:true,text:"Heart Rate (bpm)"}, min:40, max:160 },
+        y1:{ position:"right", title:{display:true,text:"SpO₂ (%)"}, min:80, max:100,
+             grid:{drawOnChartArea:false}},
+        x:{ ticks:{display:false} }
+      }
+    }
+  });
+
+  let running=false, timer=null;
+  const hrSpan=document.getElementById("hrValue");
+  const spo2Span=document.getElementById("spo2Value");
+  const tempSpan=document.getElementById("tempValue");
+  const bpSpan=document.getElementById("bpValue");
+  const statusPill=document.getElementById("statusPill");
+  const toggleBtn=document.getElementById("toggleBtn");
+  const nameInput=document.getElementById("patientNameInput");
+  const nameLabel=document.getElementById("patientNameLabel");
+  const tableBody=document.querySelector("#recordsTable tbody");
+
+  function randomInRange(min,max){ return Math.round(min + Math.random()*(max-min)); }
+
+  function updateStatus(hr,spo2,temp){
+    let status="Stable", cls="status-pill status-normal";
+    if(hr>120 || hr<50 || spo2<92 || temp>39){ status="Critical"; cls="status-pill status-critical"; }
+    else if(hr>100 || spo2<95 || temp>37.8){ status="Warning"; cls="status-pill status-warning"; }
+    statusPill.textContent=status;
+    statusPill.className=cls;
+    return status;
+  }
+
+  function logToTable(timestamp,patient,hr,spo2,temp,bp,status){
+    const tr=document.createElement("tr");
+    tr.innerHTML =
+      `<td>${timestamp}</td>
+       <td>${patient}</td>
+       <td>${hr}</td>
+       <td>${spo2}</td>
+       <td>${temp}</td>
+       <td>${bp}</td>
+       <td>${status}</td>`;
+    tableBody.prepend(tr);
+  }
+
+  function clearTable(){
+    tableBody.innerHTML="";
+  }
+
+  function pushData(){
+    const hr=randomInRange(70,120);
+    const spo2=randomInRange(93,99);
+    const temp=(36.5+Math.random()*2).toFixed(1);
+    const sys=randomInRange(100,150);
+    const dia=randomInRange(60,95);
+    const bp=sys+"/"+dia;
+
+    hrSpan.textContent=hr;
+    spo2Span.textContent=spo2;
+    tempSpan.textContent=temp;
+    bpSpan.textContent=bp;
+
+    const status=updateStatus(hr,spo2,temp);
+
+    vitalsChart.data.datasets[0].data.push(hr);
+    vitalsChart.data.datasets[1].data.push(spo2);
+    if(vitalsChart.data.datasets[0].data.length>MAX_POINTS){
+      vitalsChart.data.datasets[0].data.shift();
+      vitalsChart.data.datasets[1].data.shift();
+    }
+    vitalsChart.update("none");
+
+    const now=new Date();
+    const timeStr=now.toLocaleTimeString();
+    const patientName = nameLabel.textContent || "Unknown";
+    logToTable(timeStr, patientName, hr, spo2, temp, bp, status);
+  }
+
+  function startMonitoring(){
+    const name = nameInput.value.trim();
+    nameLabel.textContent = name === "" ? "Unknown patient" : name;
+    if(running) return;
+    running=true;
+    toggleBtn.classList.remove("btn-success");
+    toggleBtn.classList.add("btn-danger");
+    toggleBtn.innerHTML='<i class="fa-solid fa-stop me-1"></i> Stop Monitoring';
+    timer=setInterval(pushData,1000);
+  }
+
+  function stopMonitoring(){
+    running=false;
+    toggleBtn.classList.remove("btn-danger");
+    toggleBtn.classList.add("btn-success");
+    toggleBtn.innerHTML='<i class="fa-solid fa-play me-1"></i> Start Monitoring';
+    clearInterval(timer);
+  }
+
+  toggleBtn.addEventListener("click",()=>{
+    if(!running) startMonitoring(); else stopMonitoring();
+  });
+</script>
+</body>
+</html>

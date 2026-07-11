@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Doctor Consultation Portal | Smart ER & Ambulance</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    body { background:#f5f7fb; }
+    .card{border:none;box-shadow:0 2px 10px rgba(15,23,42,0.08);}
+    .vital-label{font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;}
+    .vital-value{font-size:1.4rem;font-weight:700;}
+    .vital-unit{font-size:.8rem;color:#6b7280;}
+    .status-pill{border-radius:999px;padding:.25rem .6rem;font-size:.75rem;}
+    .status-normal{background:#dcfce7;color:#166534;}
+    .status-warning{background:#fef9c3;color:#92400e;}
+    .status-critical{background:#fee2e2;color:#b91c1c;}
+    .chart-container{height:280px;}
+    .analysis-section{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;}
+    .back-link{position:absolute;top:20px;right:20px;}
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="#">
+      <i class="fa-solid fa-truck-medical me-2 text-danger"></i>
+      Smart ER & Ambulance
+    </a>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
+        <li class="nav-item"><a class="nav-link" href="tracking.html">Tracking</a></li>
+        <li class="nav-item"><a class="nav-link" href="hospital-portal.html">Hospital Portal</a></li>
+        <li class="nav-item"><a class="nav-link" href="iot-vitals.html">IoT Vitals</a></li>
+        <li class="nav-item"><a class="nav-link active" href="#">Doctor Portal</a></li>
+      </ul>
+  </div>
+</nav>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+    <div>
+      <h2 class="mb-1">Doctor Consultation Portal</h2>
+      <p class="text-muted mb-0">Analyze ambulance vitals data + provide medical assessment</p>
+    </div>
+    <form class="d-flex align-items-center gap-2">
+      <input id="patientNameInput" type="text" class="form-control form-control-sm"
+             placeholder="Enter patient name from vitals (e.g. Ravi Kumar)" style="min-width:260px;" required>
+      <button id="loadPatientBtn" type="button" class="btn btn-primary btn-sm">
+        <i class="fa-solid fa-search me-1"></i> Load Patient Data
+      </button>
+    </form>
+  </div>
+
+  <!-- Patient Vitals Summary (from IoT page) -->
+  <div id="patientVitalsSection" class="row g-4 mb-4" style="display:none;">
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="text-uppercase text-muted mb-0">LATEST VITALS</h6>
+            <span id="patientStatusPill" class="status-pill status-normal">Stable</span>
+          </div>
+          <h5 class="mb-3">
+            <span class="text-muted">Patient:</span>
+            <span id="currentPatientName" class="text-primary">Not loaded</span>
+          </h5>
+
+          <div class="row g-3">
+            <div class="col-6">
+              <div class="vital-label">Heart Rate</div>
+              <div class="vital-value">
+                <span id="latestHR">--</span><span class="vital-unit"> bpm</span>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="vital-label">SpO₂</div>
+              <div class="vital-value">
+                <span id="latestSPO2">--</span><span class="vital-unit"> %</span>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="vital-label">Temperature</div>
+              <div class="vital-value">
+                <span id="latestTemp">--</span><span class="vital-unit"> °C</span>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="vital-label">Blood Pressure</div>
+              <div class="vital-value">
+                <span id="latestBP">--/--</span><span class="vital-unit"> mmHg</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vitals Trend Chart -->
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <h6 class="mb-2">Vitals Trend (Last 30s)</h6>
+          <div class="chart-container">
+            <canvas id="doctorVitalsChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIMPLIFIED Doctor Analysis Section (REMOVED Primary Diagnosis & Urgency) -->
+  <div class="card analysis-section p-4 mb-4">
+    <h5 class="mb-3"><i class="fa-solid fa-stethoscope me-2"></i>Medical Assessment</h5>
+    
+    <div class="mt-3">
+      <label class="form-label text-white fw-bold">Doctor's Analysis & Instructions</label>
+      <textarea id="doctorAnalysis" class="form-control" rows="6" placeholder="Analyze patient's condition based on vitals trends:
+- Describe observed patterns (HR rising/falling, SpO2 dropping, etc.)
+- Clinical observations and interpretation
+- Instructions for ambulance team
+- Hospital preparation requirements
+- Any immediate interventions needed..."></textarea>
+    </div>
+    
+    <button id="saveAssessment" class="btn btn-light btn-lg mt-3">
+      <i class="fa-solid fa-save me-2"></i>Save Assessment & Notify Teams
+    </button>
+  </div>
+
+  <!-- Recent Records Table -->
+  <div class="card">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="mb-0">Recent Vitals History</h6>
+        <button class="btn btn-outline-secondary btn-sm" onclick="printRecords()">📄 Print</button>
+      </div>
+      <div class="table-responsive" style="max-height:300px;overflow-y:auto;">
+        <table class="table table-sm table-hover" id="doctorRecordsTable">
+          <thead class="table-light">
+            <tr>
+              <th>Time</th>
+              <th>HR</th>
+              <th>SpO₂</th>
+              <th>Temp</th>
+              <th>BP</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+     <!-- Back to IoT Vitals page -->
+<div style="margin: 16px 0;">
+  <a href="third.html" class="btn btn-secondary" style="padding: 8px 16px; text-decoration: none;">
+    IoT Vitals
+  </a>
+</div>
+    </div>
+    <!-- Link to Fifth Page -->
+<div style="margin: 16px 0;">
+  <a href="fifth.html" class="btn btn-primary" style="padding: 8px 16px; text-decoration: none;">
+    Patient Discharge Summary
+  </a>
+</div>
+  <!-- Confirmation -->
+  <div id="successAlert" class="alert alert-success mt-4 d-none" role="alert">
+    <i class="fa-solid fa-check-circle me-2"></i>
+    Assessment saved! Hospital and ambulance teams notified.
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // SAME JAVASCRIPT LOGIC AS BEFORE - NO CHANGES NEEDED
+  let patientData = { name: '', vitalsHistory: [], latestVitals: {} };
+
+  const doctorCtx = document.getElementById("doctorVitalsChart").getContext("2d");
+  const doctorChart = new Chart(doctorCtx, {
+    type: "line",
+    data: {
+      labels: Array(30).fill().map((_,i) => i + "s ago"),
+      datasets: [
+        { label: "Heart Rate", data: Array(30).fill(null), borderColor: "#ef4444", backgroundColor: "rgba(239,68,68,0.1)", tension: 0.3, fill: true },
+        { label: "SpO₂", data: Array(30).fill(null), borderColor: "#3b82f6", backgroundColor: "rgba(59,130,246,0.1)", tension: 0.3, fill: true, yAxisID: "y1" }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        y: { min: 40, max: 160, title: { display: true, text: "Heart Rate (bpm)" } },
+        y1: { position: "right", min: 80, max: 100, title: { display: true, text: "SpO₂ (%)" }, grid: { drawOnChartArea: false } }
+      }
+    }
+  });
+
+  document.getElementById('loadPatientBtn').onclick = () => {
+    const patientName = document.getElementById('patientNameInput').value.trim();
+    if (!patientName) { alert('Please enter patient name'); return; }
+
+    patientData.name = patientName;
+    patientData.vitalsHistory = [];
+    for (let i = 0; i < 30; i++) {
+      patientData.vitalsHistory.push({
+        time: new Date(Date.now() - i * 1000).toLocaleTimeString(),
+        hr: Math.random() > 0.3 ? randomInRange(70, 110) : randomInRange(120, 150),
+        spo2: randomInRange(92, 99),
+        temp: (36.5 + Math.random() * 2.5).toFixed(1),
+        bp: `${randomInRange(110, 160)}/${randomInRange(70, 95)}`
+      });
+    }
+    patientData.latestVitals = patientData.vitalsHistory[patientData.vitalsHistory.length - 1];
+    displayPatientData();
+    document.getElementById('patientVitalsSection').style.display = 'block';
+  };
+
+  function displayPatientData() {
+    document.getElementById('currentPatientName').textContent = patientData.name;
+    document.getElementById('latestHR').textContent = patientData.latestVitals.hr;
+    document.getElementById('latestSPO2').textContent = patientData.latestVitals.spo2;
+    document.getElementById('latestTemp').textContent = patientData.latestVitals.temp;
+    document.getElementById('latestBP').textContent = patientData.latestVitals.bp;
+
+    const hr = patientData.latestVitals.hr;
+    const spo2 = patientData.latestVitals.spo2;
+    let status = 'Stable', cls = 'status-normal';
+    if (hr > 120 || spo2 < 92) { status = 'Critical'; cls = 'status-critical'; }
+    else if (hr > 100 || spo2 < 95) { status = 'Warning'; cls = 'status-warning'; }
+    
+    document.getElementById('patientStatusPill').textContent = status;
+    document.getElementById('patientStatusPill').className = `status-pill ${cls}`;
+
+    doctorChart.data.datasets[0].data = patientData.vitalsHistory.map(v => v.hr).slice(-30);
+    doctorChart.data.datasets[1].data = patientData.vitalsHistory.map(v => v.spo2).slice(-30);
+    doctorChart.update();
+    updateRecordsTable();
+  }
+
+  function updateRecordsTable() {
+    const tbody = document.querySelector('#doctorRecordsTable tbody');
+    tbody.innerHTML = '';
+    patientData.vitalsHistory.slice(-10).forEach(vital => {
+      const row = tbody.insertRow();
+      row.innerHTML = `
+        <td>${vital.time}</td>
+        <td>${vital.hr}</td>
+        <td>${vital.spo2}</td>
+        <td>${vital.temp}</td>
+        <td>${vital.bp}</td>
+        <td><span class="badge ${vital.hr > 120 || vital.spo2 < 92 ? 'bg-danger' : 'bg-success'}">${vital.hr > 120 || vital.spo2 < 92 ? 'Critical' : 'Stable'}</span></td>
+      `;
+    });
+  }
+
+  function randomInRange(min, max) {
+    return Math.round(min + Math.random() * (max - min));
+  }
+
+  document.getElementById('saveAssessment').onclick = () => {
+    const analysis = document.getElementById('doctorAnalysis').value.trim();
+    if (!patientData.name || !analysis) {
+      alert('Please load patient data and enter your analysis');
+      return;
+    }
+
+    const assessment = {
+      patient: patientData.name,
+      analysis,
+      timestamp: new Date().toLocaleString(),
+      latestVitals: patientData.latestVitals
+    };
+
+    console.log('Assessment saved:', assessment);
+    
+    document.getElementById('successAlert').innerHTML = `
+      <i class="fa-solid fa-check-circle me-2"></i>
+      Assessment for <strong>${patientData.name}</strong> saved successfully!
+    `;
+    document.getElementById('successAlert').classList.remove('d-none');
+  };
+
+  function printRecords() {
+    const printContent = document.getElementById('doctorRecordsTable').outerHTML;
+    const printWin = window.open('', '_blank');
+    printWin.document.write(`
+      <html><head><title>Vitals Report - ${patientData.name}</title>
+      <style>body{font-family:Arial;margin:20px;} table{border-collapse:collapse;width:100%;} th,td{border:1px solid #ddd;padding:8px;}</style>
+      </head><body>
+        <h2>Vitals Report: ${patientData.name}</h2>
+        ${printContent}
+      </body></html>
+    `);
+    printWin.print();
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TrackER – Emergency Response Control Center</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <style>
+    :root {
+      --primary-light: #E8F1FA;
+      --primary-lighter: #D3E5F4;
+      --white-primary: #FFFFFF;
+      --white-secondary: #F7F9FB;
+      --accent-teal: #009688;
+      --accent-green: #2DBFA6;
+      --text-dark: #1A202C;
+      --text-secondary: #718096;
+      --border-light: #E2E8F0;
+      --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.08);
+      --shadow-medium: 0 8px 30px rgba(0, 0, 0, 0.12);
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, var(--primary-light), var(--white-secondary));
+      color: var(--text-dark);
+    }
+
+    /* NAVBAR */
+    nav.navbar {
+      background: var(--white-primary);
+      box-shadow: var(--shadow-soft);
+      border-bottom: 2px solid var(--primary-lighter);
+      padding: 1rem 0;
+    }
+
+    .navbar-brand {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--accent-teal);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .navbar-brand i {
+      font-size: 2rem;
+      color: var(--accent-green);
+    }
+
+    .nav-link {
+      color: var(--text-secondary) !important;
+      font-weight: 500;
+      transition: 0.3s;
+    }
+
+    .nav-link:hover {
+      color: var(--accent-teal) !important;
+    }
+
+    .profile-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-teal), var(--accent-green));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+    }
+
+    /* HERO */
+    .hero-section {
+      padding: 60px 20px;
+      text-align: center;
+      background: linear-gradient(135deg, var(--primary-light), var(--primary-lighter));
+    }
+
+    .hero-content h1 {
+      font-size: 2.7rem;
+      font-weight: 700;
+    }
+
+    .hero-content p {
+      max-width: 600px;
+      margin: 10px auto;
+      color: var(--text-secondary);
+      font-size: 1.1rem;
+    }
+
+    .hero-stats {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 40px;
+      margin-top: 30px;
+    }
+
+    .hero-stat .number {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent-teal);
+    }
+
+    /* MAIN */
+    .container-main {
+      max-width: 1400px;
+      margin: auto;
+      padding: 60px 20px;
+    }
+
+    .modules-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 30px;
+    }
+
+    .module-card {
+      background: var(--white-primary);
+      border-radius: 16px;
+      padding: 35px 30px;
+      text-align: center;
+      border: 1px solid var(--border-light);
+      box-shadow: var(--shadow-soft);
+      cursor: pointer;
+      transition: 0.35s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .module-card:hover {
+      transform: translateY(-10px);
+      box-shadow: var(--shadow-medium);
+      border-color: var(--accent-teal);
+    }
+
+    .module-icon {
+      font-size: 3rem;
+      width: 80px;
+      height: 80px;
+      border-radius: 16px;
+      background: var(--primary-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      color: var(--accent-teal);
+      transition: 0.3s;
+    }
+
+    .module-card:hover .module-icon {
+      background: linear-gradient(135deg, var(--accent-teal), var(--accent-green));
+      color: white;
+      transform: scale(1.1);
+    }
+
+    .module-name {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .module-tagline {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      margin-bottom: 20px;
+    }
+
+    .module-arrow {
+      color: var(--accent-teal);
+      transition: 0.3s;
+    }
+
+    .module-card:hover .module-arrow {
+      transform: translateX(5px);
+    }
+
+    /* SYSTEM STATUS */
+    .system-status {
+      background: linear-gradient(135deg, #E8F5E9, #F1F8E9);
+      padding: 30px;
+      border-radius: 16px;
+      border-left: 4px solid #4CAF50;
+      margin-bottom: 50px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .status-badge {
+      background: #4CAF50;
+      color: white;
+      padding: 8px 18px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+
+    /* FOOTER */
+    footer {
+      background: var(--text-dark);
+      color: white;
+      text-align: center;
+      padding: 40px 20px;
+      margin-top: 40px;
+    }
+
+    .footer-links a {
+      color: var(--accent-green);
+      margin: 0 15px;
+      text-decoration: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="navbar navbar-expand-lg navbar-light">
+    <div class="container-fluid px-4">
+      <a class="navbar-brand"><i class="fas fa-ambulance"></i>TrackER</a>
+      <button class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto align-items-center">
+          <li class="nav-item"><a class="nav-link" href="#">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="#">Settings</a></li>
+          <li class="nav-item"><a class="nav-link" href="#">Help</a></li>
+          <li class="nav-item ms-3"><i class="fas fa-bell" style="font-size:1.2rem;color:var(--text-secondary);"></i></li>
+          <li class="nav-item ms-3"><div class="profile-avatar">RJ</div></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero-section">
+    <div class="hero-content">
+      <h1>Welcome to TrackER</h1>
+      <p>Your unified command center for emergency medical response, ambulance tracking, hospital coordination, and life-saving analytics.</p>
+
+      <div class="hero-stats">
+        <div class="hero-stat"><div class="number">450+</div><div>Active Ambulances</div></div>
+        <div class="hero-stat"><div class="number">85</div><div>Partner Hospitals</div></div>
+        <div class="hero-stat"><div class="number">8.2m</div><div>Avg Response Time</div></div>
+        <div class="hero-stat"><div class="number">98%</div><div>System Uptime</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAIN -->
+  <div class="container-main">
+
+    <h2 style="text-align:center;margin-bottom:40px;font-weight:700;">Features</h2>
+
+    <div class="modules-grid">
+
+      <!-- 1. Ambulance Dispatch & Tracking -->
+      <div class="module-card">
+        <a href="first.html" class="feature-card">
+            <div class="module-icon"><i class="fas fa-location-crosshairs"></i></div>
+            <h3 class="module-name">Ambulance Dispatch & Live Tracking</h3>
+            <p class="module-tagline">“Real-time fleet status and emergency routing”</p>
+            <span class="module-arrow"><i class="fas fa-arrow-right"></i></span>
+        </a>
+        
+  <!-- existing Emergency Call Flow card content -->
+</a>
+
+      </div>
+
+      <!-- 2. Hospital Coordination -->
+      <div class="module-card">
+          <a href="second.html" class="feature-card">
+              <div class="module-icon"><i class="fas fa-hospital"></i></div>
+              <h3 class="module-name">Hospital Coordination</h3>
+              <p class="module-tagline"> “Continuous patient vitals from IoT devices”</p>
+              <span class="module-arrow"><i class="fas fa-arrow-right"></i></span>
+
+          </a>
+  <!-- existing Hospital Selection card content -->
+</a>
+
+      </div>
+
+      <!-- 3. IoT Vital Monitoring -->
+      <div class="module-card">
+         <a href="third.html" class="feature-card">
+ <div class="module-icon"><i class="fas fa-heartbeat"></i></div>
+        <h3 class="module-name">IoT Vital Monitoring System</h3>
+        <p class="module-tagline">“On-demand clinical communication”</p>
+        <span class="module-arrow"><i class="fas fa-arrow-right"></i></span>
+         </a>
+</a>
+
+      </div>
+
+      <!-- 4. Doctor Consultation -->
+      <div class="module-card">
+         <a href="fourth.html" class="feature-card">
+        <div class="module-icon"><i class="fas fa-user-md"></i></div>
+        <h3 class="module-name">Doctor Consultation Portal</h3>
+        <p class="module-tagline">Secure real-time communication between ambulance staff and specialist doctors.</p>
+        <span class="module-arrow"><i class="fas fa-arrow-right"></i></span>
+        <a href="fourth.html" class="feature-card">
+</a>
+
+      </div>
+
+      <!-- 5. Patient Handover -->
+      <div class="module-card">
+        <a href="fifth.html" class="feature-card">
+        <div class="module-icon"><i class="fas fa-file-medical"></i></div>
+        <h3 class="module-name">Patient Handover & Discharge</h3>
+        <p class="module-tagline">“Structured transition and release workflow”</p>
+        <span class="module-arrow"><i class="fas fa-arrow-right"></i></span>
+        <a href="fifth.html" class="feature-card">
+  <!-- existing Discharge Summary card content -->
+</a>
+
+      </div>
+
+      <!-- 6. Analytics -->
+      <div class="module-card">
+        <a href="sixth.html" class="feature-card">
+        <div class="module-icon"><i class="fas fa-chart-line"></i></div>
+        <h3 class="module-name">FeedBack</h3>
+        <p class="module-tagline">“Patient's feedback”.</p>
+        <span class="module-arrow"><i class="fas fa-arrow-right"></i></span>
+        <a href="sixth.html" class="feature-card">
+  <!-- existing Feedback card content -->
+</a>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <p>&copy; 2025 TrackER – Emergency Response System</p>
+    <p>Version 1.0.0 | Last Updated: Nov 2025</p>
+    <div class="footer-links">
+      <a href="#">Privacy Policy</a>
+      <a href="#">Terms of Service</a>
+      <a href="#">Support</a>
+      <a href="#">System Status</a>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
