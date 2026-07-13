@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getRoleDashboardPath } from '../utils/roleBasedNavigation';
 
 function Register() {
   const navigate = useNavigate();
@@ -41,10 +42,11 @@ function Register() {
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/');
+    if (isAuthenticated && user) {
+      const dashboardPath = getRoleDashboardPath(user.role);
+      navigate(dashboardPath);
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, user, navigate]);
 
   const handleRoleSelection = (role) => {
     setSelectedRole(role);
@@ -160,7 +162,10 @@ function Register() {
       }
 
       await register(registrationData);
-      navigate('/');
+      
+      // Redirect based on role using centralized helper
+      const dashboardPath = getRoleDashboardPath(selectedRole);
+      navigate(dashboardPath);
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {

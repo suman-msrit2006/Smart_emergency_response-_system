@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { authService } from '../services/authService';
+import { getRoleDashboardPath } from '../utils/roleBasedNavigation';
 
 function Login() {
   const navigate = useNavigate();
@@ -29,7 +31,9 @@ function Login() {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/');
+      const currentUser = authService.getCurrentUser();
+      const dashboardPath = getRoleDashboardPath(currentUser?.role);
+      navigate(dashboardPath);
     }
   }, [isAuthenticated, navigate]);
 
@@ -55,8 +59,12 @@ function Login() {
     setLoading(true);
 
     try {
-      await login(formData);
-      navigate('/');
+      const response = await login(formData);
+      const userRole = response.data.user.role;
+      
+      // Redirect based on role using centralized helper
+      const dashboardPath = getRoleDashboardPath(userRole);
+      navigate(dashboardPath);
     } catch (err) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {

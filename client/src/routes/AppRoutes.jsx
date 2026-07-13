@@ -5,6 +5,8 @@ import ProtectedRoute from "../components/ProtectedRoute";
 
 // Lazy load pages for better performance
 const Home = lazy(() => import("../pages/Home"));
+const PatientDashboard = lazy(() => import("../pages/PatientDashboard"));
+const AmbulanceDashboard = lazy(() => import("../pages/AmbulanceDashboard"));
 const Emergency = lazy(() => import("../pages/Emergency"));
 const Hospital = lazy(() => import("../pages/Hospital"));
 const Vitals = lazy(() => import("../pages/Vitals"));
@@ -34,6 +36,24 @@ function AppRoutes() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/help" element={<Help />} />
+          
+          {/* Dashboard Routes */}
+          <Route 
+            path="/patient-dashboard" 
+            element={
+              <ProtectedRoute>
+                <PatientDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/ambulance-dashboard" 
+            element={
+              <ProtectedRoute>
+                <AmbulanceDashboard />
+              </ProtectedRoute>
+            } 
+          />
           
           {/* Protected Routes */}
           <Route 

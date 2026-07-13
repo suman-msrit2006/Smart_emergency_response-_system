@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
 import { authService } from "../services/authService";
+import { getRoleDashboardPath } from "../utils/roleBasedNavigation";
 
 function Profile() {
   const navigate = useNavigate();
@@ -121,7 +122,9 @@ function Profile() {
       setErrors({});
       setMessage({ type: "", text: "" });
     }
-    navigate('/');
+    // Navigate to appropriate dashboard based on user role
+    const dashboardPath = getRoleDashboardPath(user?.role);
+    navigate(dashboardPath);
   };
 
   const getUserInitial = () => {

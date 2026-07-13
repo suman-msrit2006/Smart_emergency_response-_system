@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
+import { getRoleDashboardPath } from "../utils/roleBasedNavigation";
 
 function Navbar() {
   const navigate = useNavigate();
@@ -63,12 +64,20 @@ function Navbar() {
     return user?.role || '';
   };
 
+  // Get the correct dashboard path for the current user
+  const getDashboardLink = () => {
+    if (user && user.role) {
+      return getRoleDashboardPath(user.role);
+    }
+    return '/';
+  };
+
   return (
     <nav className="bg-white shadow-sm sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
         
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2">
+        <Link to={getDashboardLink()} className="flex items-center gap-2">
           <svg className="w-6 h-6 text-teal-600" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" fill="none"/>
           </svg>
@@ -77,7 +86,7 @@ function Navbar() {
 
         {/* Navigation Links */}
         <div className="flex items-center gap-8">
-          <Link to="/" className="text-gray-600 hover:text-teal-600 text-sm">
+          <Link to={getDashboardLink()} className="text-gray-600 hover:text-teal-600 text-sm">
             Home
           </Link>
           <Link to="/settings" className="text-gray-600 hover:text-teal-600 text-sm">

@@ -2,9 +2,12 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWorkflow } from '../context/WorkflowContext';
 import { feedbackService } from '../services/feedbackService';
+import { useAuth } from '../context/AuthContext';
+import { getRoleDashboardPath } from '../utils/roleBasedNavigation';
 
 export default function Feedback() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { patientInfo, feedback, setFeedback, resetWorkflow, setWorkflowStep } = useWorkflow();
 
   const [patientName] = useState(patientInfo.name || 'Patient');
@@ -69,7 +72,9 @@ export default function Feedback() {
 
   const handleStartOver = () => {
     resetWorkflow();
-    navigate('/');
+    // Navigate to appropriate dashboard based on user role
+    const dashboardPath = getRoleDashboardPath(user?.role);
+    navigate(dashboardPath);
   };
 
   return (
