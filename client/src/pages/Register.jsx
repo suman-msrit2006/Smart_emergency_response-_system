@@ -6,7 +6,7 @@ import { getRoleDashboardPath } from '../utils/roleBasedNavigation';
 function Register() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { register, isAuthenticated } = useAuth();
+  const { register, isAuthenticated, user } = useAuth();
   const [step, setStep] = useState('role-selection'); // 'role-selection' or 'registration'
   const [selectedRole, setSelectedRole] = useState(null);
   const [formData, setFormData] = useState({

@@ -7,7 +7,7 @@ import { getRoleDashboardPath } from '../utils/roleBasedNavigation';
 function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, logout } = useAuth();
   const [step, setStep] = useState('role-selection'); // 'role-selection' or 'login'
   const [selectedRole, setSelectedRole] = useState(null);
   const [formData, setFormData] = useState({
@@ -61,6 +61,15 @@ function Login() {
     try {
       const response = await login(formData);
       const userRole = response.data.user.role;
+      
+      // Validate that the logged-in user's role matches the selected role
+      if (userRole !== selectedRole) {
+        setError('Invalid credentials');
+        // Logout to clear the invalid session
+        logout();
+        setLoading(false);
+        return;
+      }
       
       // Redirect based on role using centralized helper
       const dashboardPath = getRoleDashboardPath(userRole);
