@@ -4,35 +4,78 @@ import catchAsync from '../utils/catchAsync.js';
 import { generateToken } from '../utils/jwt.js';
 
 export const register = catchAsync(async (req, res, next) => {
-  const { name, email, password, phone, role } = req.body;
+  const { 
+    name, 
+    email, 
+    password, 
+    phone, 
+    role,
+    // Patient fields
+    age,
+    gender,
+    emergencyContactNumber,
+    // Ambulance Personnel fields
+    employeeId,
+    ambulanceNumber,
+    licenseNumber,
+    organization,
+  } = req.body;
 
   const existingUser = await User.findOne({ email });
   if (existingUser) {
     return next(new AppError('Email already registered', 400));
   }
 
-  const user = await User.create({
+  const userData = {
     name,
     email,
     password,
     phone,
     role,
-  });
+  };
+
+  // Add role-specific fields
+  if (role === 'Patient') {
+    userData.age = age;
+    userData.gender = gender;
+    userData.emergencyContactNumber = emergencyContactNumber;
+  } else if (role === 'Ambulance Personnel') {
+    userData.employeeId = employeeId;
+    userData.ambulanceNumber = ambulanceNumber;
+    userData.licenseNumber = licenseNumber;
+    userData.organization = organization;
+  }
+
+  const user = await User.create(userData);
 
   const token = generateToken(user._id);
+
+  const userResponse = {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    role: user.role,
+  };
+
+  // Add role-specific fields to response
+  if (role === 'Patient') {
+    userResponse.age = user.age;
+    userResponse.gender = user.gender;
+    userResponse.emergencyContactNumber = user.emergencyContactNumber;
+  } else if (role === 'Ambulance Personnel') {
+    userResponse.employeeId = user.employeeId;
+    userResponse.ambulanceNumber = user.ambulanceNumber;
+    userResponse.licenseNumber = user.licenseNumber;
+    userResponse.organization = user.organization;
+  }
 
   res.status(201).json({
     status: 'success',
     message: 'User registered successfully',
     data: {
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-      },
+      user: userResponse,
     },
   });
 });

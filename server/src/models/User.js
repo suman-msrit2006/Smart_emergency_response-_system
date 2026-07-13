@@ -39,10 +39,42 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: {
-        values: ['Patient', 'Doctor', 'Ambulance Driver', 'Hospital Admin'],
+        values: ['Patient', 'Ambulance Personnel'],
         message: '{VALUE} is not a valid role',
       },
       required: [true, 'Role is required'],
+    },
+    // Patient-specific fields
+    age: {
+      type: Number,
+      min: [0, 'Age cannot be negative'],
+      max: [150, 'Age cannot exceed 150'],
+    },
+    gender: {
+      type: String,
+      enum: ['Male', 'Female', 'Other'],
+    },
+    emergencyContactNumber: {
+      type: String,
+      trim: true,
+    },
+    // Ambulance Personnel-specific fields
+    employeeId: {
+      type: String,
+      trim: true,
+      sparse: true,
+    },
+    ambulanceNumber: {
+      type: String,
+      trim: true,
+    },
+    licenseNumber: {
+      type: String,
+      trim: true,
+    },
+    organization: {
+      type: String,
+      trim: true,
     },
     isActive: {
       type: Boolean,

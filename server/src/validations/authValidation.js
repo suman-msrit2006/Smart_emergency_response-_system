@@ -37,9 +37,77 @@ export const registerSchema = z.object({
     )
     .trim(),
 
-  role: z.enum(['Patient', 'Doctor', 'Ambulance Driver', 'Hospital Admin'], {
+  role: z.enum(['Patient', 'Ambulance Personnel'], {
     errorMap: () => ({ message: 'Invalid role selected' }),
   }),
+
+  // Patient-specific fields
+  age: z.number().min(0).max(150).optional(),
+  gender: z.enum(['Male', 'Female', 'Other']).optional(),
+  emergencyContactNumber: z.string().trim().optional(),
+
+  // Ambulance Personnel-specific fields
+  employeeId: z.string().trim().optional(),
+  ambulanceNumber: z.string().trim().optional(),
+  licenseNumber: z.string().trim().optional(),
+  organization: z.string().trim().optional(),
+}).superRefine((data, ctx) => {
+  // Patient-specific required fields
+  if (data.role === 'Patient') {
+    if (!data.age) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['age'],
+        message: 'Age is required for Patient registration',
+      });
+    }
+    if (!data.gender) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['gender'],
+        message: 'Gender is required for Patient registration',
+      });
+    }
+    if (!data.emergencyContactNumber) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['emergencyContactNumber'],
+        message: 'Emergency contact number is required for Patient registration',
+      });
+    }
+  }
+
+  // Ambulance Personnel-specific required fields
+  if (data.role === 'Ambulance Personnel') {
+    if (!data.employeeId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['employeeId'],
+        message: 'Employee ID is required for Ambulance Personnel registration',
+      });
+    }
+    if (!data.ambulanceNumber) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ambulanceNumber'],
+        message: 'Ambulance Number is required for Ambulance Personnel registration',
+      });
+    }
+    if (!data.licenseNumber) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['licenseNumber'],
+        message: 'License Number is required for Ambulance Personnel registration',
+      });
+    }
+    if (!data.organization) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['organization'],
+        message: 'Organization/Hospital is required for Ambulance Personnel registration',
+      });
+    }
+  }
 });
 
 export const loginSchema = z.object({
