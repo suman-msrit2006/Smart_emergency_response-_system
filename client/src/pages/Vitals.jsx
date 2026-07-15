@@ -13,6 +13,7 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { useWorkflow } from '../context/WorkflowContext';
+import { useAuth } from '../context/AuthContext';
 import { vitalService } from '../services/vitalService';
 
 ChartJS.register(
@@ -31,6 +32,11 @@ const MAX_POINTS = 30;
 export default function Vitals() {
   const navigate = useNavigate();
   const { patientInfo, updatePatientInfo, vitalsData, updateVitals, toggleVitalsMonitoring, setWorkflowStep } = useWorkflow();
+  const { user } = useAuth();
+  
+  // Check user role
+  const isAmbulancePersonnel = user?.role === 'Ambulance Personnel';
+  const isPatient = user?.role === 'Patient' || !isAmbulancePersonnel;
 
   const [patientName, setPatientName] = useState(patientInfo.name || '');
   const [currentVitals, setCurrentVitals] = useState({
@@ -225,6 +231,145 @@ export default function Vitals() {
     },
   };
 
+  // PATIENT VIEW - READ ONLY
+  if (isPatient) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        {/* NAVBAR */}
+        <nav className="bg-gray-900 text-white shadow-lg mb-8">
+          <div className="container mx-auto px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🚑</span>
+                <span className="text-xl font-bold">IOT Vitals (View Only)</span>
+              </div>
+              <ul className="flex gap-6">
+                <li><button onClick={() => navigate('/vitals')} className="hover:text-blue-400 transition">IoT Vitals</button></li>
+              </ul>
+            </div>
+          </div>
+        </nav>
+
+        <div className="container mx-auto px-4">
+          {/* TOP ROW - READ ONLY */}
+          <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
+            <div>
+              <h2 className="text-3xl font-bold mb-2">Your Vital Signs (Read Only)</h2>
+              <p className="text-gray-600">
+                View your real-time vital signs being monitored by ambulance personnel during transport.
+              </p>
+            </div>
+            <div className="bg-blue-100 border border-blue-300 rounded-lg px-6 py-3">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">👀</span>
+                <span className="text-sm font-semibold text-blue-800">View Only Mode</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* VITALS CARD - READ ONLY */}
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h6 className="text-sm uppercase text-gray-500 font-semibold">Your Vitals</h6>
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${status.class}`}>
+                    {status.text}
+                  </span>
+                </div>
+                <h5 className="mb-2">
+                  <span className="text-gray-600">Patient:</span>{' '}
+                  <span className="text-blue-600 font-semibold">
+                    {patientInfo.name || user?.name || 'You'}
+                  </span>
+                </h5>
+                <h6 className="text-gray-600 text-sm mb-6">
+                  Your vitals are being monitored by the ambulance team in real-time.
+                </h6>
+
+                <div className="border-t pt-6 space-y-6">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="text-xs uppercase text-gray-500 mb-1">Heart Rate</div>
+                      <div className="text-2xl font-bold">
+                        {currentVitals.hr}<span className="text-sm text-gray-500"> bpm</span>
+                      </div>
+                    </div>
+                    <span className="text-4xl text-red-500">❤️</span>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="text-xs uppercase text-gray-500 mb-1">SpO₂</div>
+                      <div className="text-2xl font-bold">
+                        {currentVitals.spo2}<span className="text-sm text-gray-500"> %</span>
+                      </div>
+                    </div>
+                    <span className="text-4xl text-blue-500">🫁</span>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="text-xs uppercase text-gray-500 mb-1">Temperature</div>
+                      <div className="text-2xl font-bold">
+                        {currentVitals.temp}<span className="text-sm text-gray-500"> °C</span>
+                      </div>
+                    </div>
+                    <span className="text-4xl text-yellow-500">🌡️</span>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="text-xs uppercase text-gray-500 mb-1">Blood Pressure</div>
+                      <div className="text-2xl font-bold">
+                        {currentVitals.bp}<span className="text-sm text-gray-500"> mmHg</span>
+                      </div>
+                    </div>
+                    <span className="text-4xl text-green-500">🩺</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+                ℹ️ Your medical team is monitoring your vitals continuously. If there's any concern, they will take immediate action.
+              </div>
+            </div>
+
+            {/* CHART - READ ONLY */}
+            <div className="lg:col-span-2">
+              <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h5 className="text-xl font-semibold">Real-Time Vitals Graph</h5>
+                  <span className="text-sm text-gray-500">Last 30 seconds</span>
+                </div>
+                <p className="text-sm text-gray-600 mb-4">
+                  Live monitoring of your heart rate and oxygen saturation levels.
+                </p>
+                <div style={{ height: '280px' }}>
+                  <Line data={chartData} options={chartOptions} />
+                </div>
+              </div>
+
+              <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                <div className="flex items-start gap-4">
+                  <span className="text-4xl">👨‍⚕️</span>
+                  <div>
+                    <h5 className="text-lg font-semibold text-gray-800 mb-2">Medical Team Monitoring</h5>
+                    <p className="text-sm text-gray-700">
+                      Your ambulance personnel are actively monitoring your vitals and will alert doctors if any intervention is needed. 
+                      You're in safe hands.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // AMBULANCE PERSONNEL VIEW - FULL FUNCTIONALITY
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       {/* NAVBAR */}

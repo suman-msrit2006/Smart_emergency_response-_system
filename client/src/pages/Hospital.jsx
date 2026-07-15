@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import { useWorkflow } from '../context/WorkflowContext';
 import { hospitalService } from '../services/hospitalService';
 import { emergencyService } from '../services/emergencyService';
+import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ToastContainer';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
@@ -46,7 +47,12 @@ function MapUpdater({ center, zoom }) {
 export default function Hospital() {
   const navigate = useNavigate();
   const { selectedHospital, setSelectedHospital, setWorkflowStep } = useWorkflow();
+  const { user } = useAuth();
   const toast = useToast();
+  
+  // Check user role
+  const isAmbulancePersonnel = user?.role === 'Ambulance Personnel';
+  const isPatient = user?.role === 'Patient' || !isAmbulancePersonnel;
   
   const [hospitalSelect, setHospitalSelect] = useState('');
   const [patientLocation, setPatientLocation] = useState('');
@@ -267,6 +273,94 @@ export default function Hospital() {
 
   const hospitalsToDisplay = nearbyHospitals.length > 0 ? nearbyHospitals : [];
 
+  // If patient, only show the assigned hospital (read-only view)
+  if (isPatient) {
+    return (
+      <div className="min-h-screen py-8" style={{ background: 'linear-gradient(135deg, #00b894 0%, #00cec9 100%)' }}>
+        <div className="container mx-auto px-4">
+          {/* HEADER */}
+          <h1 className="text-4xl font-bold text-white text-center mb-2">🏥 Your Assigned Hospital</h1>
+          <p className="text-white text-center text-xl mb-8">View your assigned hospital details</p>
+
+          {/* PATIENT VIEW - READ ONLY */}
+          <div className="max-w-4xl mx-auto bg-white bg-opacity-95 rounded-3xl p-8 shadow-2xl mb-8">
+            {selectedHospital ? (
+              <>
+                <div className="flex items-center justify-center mb-6">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                    <span className="text-4xl">🏥</span>
+                  </div>
+                </div>
+                <h2 className="text-3xl font-bold text-center text-gray-800 mb-4">
+                  {selectedHospital.name}
+                </h2>
+                <div className="space-y-4 mb-6">
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <div className="text-sm text-gray-600 mb-1">Status</div>
+                    <div className="text-lg font-semibold text-green-700">✅ Assigned & Confirmed</div>
+                  </div>
+                  {selectedHospital.doctors && (
+                    <div className="bg-blue-50 rounded-lg p-4">
+                      <div className="text-sm text-gray-600 mb-1">Available Doctors</div>
+                      <div className="text-lg font-semibold text-blue-700">{selectedHospital.doctors} doctors ready</div>
+                    </div>
+                  )}
+                  {selectedHospital.beds && (
+                    <div className="bg-purple-50 rounded-lg p-4">
+                      <div className="text-sm text-gray-600 mb-1">Available Beds</div>
+                      <div className="text-lg font-semibold text-purple-700">{selectedHospital.beds} beds available</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* MAP - READ ONLY */}
+                <div className="mb-6" style={{ height: '400px', borderRadius: '15px', overflow: 'hidden' }}>
+                  <MapContainer 
+                    center={[selectedHospital.lat, selectedHospital.lng]} 
+                    zoom={14} 
+                    style={{ height: '100%', width: '100%' }}
+                    scrollWheelZoom={false}
+                    dragging={false}
+                    zoomControl={false}
+                  >
+                    <TileLayer
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+                    <Marker position={[selectedHospital.lat, selectedHospital.lng]} icon={icons.hospital}>
+                      <Popup>🏥 {selectedHospital.name}</Popup>
+                    </Marker>
+                  </MapContainer>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 text-center">
+                  ℹ️ Your ambulance is heading to this hospital. Medical staff are prepared for your arrival.
+                </div>
+              </>
+            ) : (
+              <EmptyState
+                icon="🏥"
+                title="No Hospital Assigned Yet"
+                message="Your ambulance will coordinate with a hospital shortly. Please wait for the assignment."
+              />
+            )}
+          </div>
+
+          {/* NAVIGATION BUTTON */}
+          <div className="text-center">
+            <button
+              onClick={() => navigate('/vitals')}
+              className="px-8 py-3 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 transition"
+            >
+              Continue to Vitals Monitoring →
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // AMBULANCE PERSONNEL VIEW - FULL FUNCTIONALITY
   return (
     <div className="min-h-screen py-8" style={{ background: 'linear-gradient(135deg, #00b894 0%, #00cec9 100%)' }}>
       <div className="container mx-auto px-4">
