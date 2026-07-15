@@ -1,0 +1,185 @@
+import mongoose from 'mongoose';
+
+const emergencyRequestSchema = new mongoose.Schema(
+  {
+    requestId: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+    },
+    patient: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'Patient is required'],
+    },
+    patientName: {
+      type: String,
+      required: [true, 'Patient name is required'],
+      trim: true,
+    },
+    patientPhone: {
+      type: String,
+      required: [true, 'Patient phone is required'],
+      trim: true,
+    },
+    location: {
+      type: {
+        type: String,
+        enum: ['Point'],
+        default: 'Point',
+      },
+      coordinates: {
+        type: [Number],
+        required: [true, 'Location coordinates are required'],
+      },
+      address: {
+        type: String,
+        required: [true, 'Location address is required'],
+        trim: true,
+      },
+    },
+    status: {
+      type: String,
+      enum: [
+        'PENDING',
+        'ACCEPTED',
+        'EN_ROUTE',
+        'ARRIVED',
+        'PATIENT_PICKED',
+        'HOSPITAL_REACHED',
+        'COMPLETED',
+        'CANCELLED',
+        'REJECTED',
+      ],
+      default: 'PENDING',
+    },
+    assignedAmbulance: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Ambulance',
+      default: null,
+    },
+    ambulancePersonnel: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    acceptedAt: {
+      type: Date,
+      default: null,
+    },
+    arrivedAt: {
+      type: Date,
+      default: null,
+    },
+    pickedUpAt: {
+      type: Date,
+      default: null,
+    },
+    completedAt: {
+      type: Date,
+      default: null,
+    },
+    cancelledAt: {
+      type: Date,
+      default: null,
+    },
+    estimatedArrival: {
+      type: Date,
+      default: null,
+    },
+    emergencyType: {
+      type: String,
+      enum: ['Medical', 'Accident', 'Cardiac', 'Respiratory', 'Other'],
+      default: 'Other',
+    },
+    severity: {
+      type: String,
+      enum: ['Low', 'Medium', 'High', 'Critical'],
+      default: 'Medium',
+    },
+    notes: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    rejectionReason: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
+);
+
+// Indexes for performance
+emergencyRequestSchema.index({ requestId: 1 });
+emergencyRequestSchema.index({ patient: 1 });
+emergencyRequestSchema.index({ status: 1 });
+emergencyRequestSchema.index({ assignedAmbulance: 1 });
+emergencyRequestSchema.index({ location: '2dsphere' });
+emergencyRequestSchema.index({ createdAt: -1 });
+
+// Virtual to check if request is pending
+emergencyRequestSchema.virtual('isPending').get(function () {
+  return this.status === 'PENDING';
+});
+
+// Virtual to check if request is active
+emergencyRequestSchema.virtual('isActiveRequest').get(function () {
+  return (
+    this.isActive &&
+    ['PENDING', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'PATIENT_PICKED'].includes(this.status)
+  );
+});
+
+// Generate unique request ID before saving
+emergencyRequestSchema.pre('save', async function (next) {
+  if (this.isNew && !this.requestId) {
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+    this.requestId = `EMR-${timestamp}-${random}`;
+  }
+  next();
+});
+
+// Update timestamps based on status
+emergencyRequestSchema.pre('save', function (next) {
+  if (this.isModified('status')) {
+    const now = new Date();
+    
+    switch (this.status) {
+      case 'ACCEPTED':
+        if (!this.acceptedAt) this.acceptedAt = now;
+        break;
+      case 'ARRIVED':
+        if (!this.arrivedAt) this.arrivedAt = now;
+        break;
+      case 'PATIENT_PICKED':
+        if (!this.pickedUpAt) this.pickedUpAt = now;
+        break;
+      case 'COMPLETED':
+        if (!this.completedAt) this.completedAt = now;
+        this.isActive = false;
+        break;
+      case 'CANCELLED':
+      case 'REJECTED':
+        if (!this.cancelledAt) this.cancelledAt = now;
+        this.isActive = false;
+        break;
+    }
+  }
+  next();
+});
+
+const EmergencyRequest = mongoose.model('EmergencyRequest', emergencyRequestSchema);
+
+export default EmergencyRequest;

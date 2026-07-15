@@ -1,19 +1,59 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import { getRoleDashboardPath } from "../utils/roleBasedNavigation";
+import { notificationService } from "../services/notificationService";
+import socketService from "../services/socketService";
 
 function Navbar() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const dropdownRef = useRef(null);
+  const notifRef = useRef(null);
 
-  // Close dropdown when clicking outside
+  const isAmbulancePersonnel = user?.role === 'Ambulance Personnel';
+
+  // ── Fetch unread count on mount (Ambulance Personnel only) ──────────────
+  const fetchUnreadCount = useCallback(async () => {
+    if (!isAmbulancePersonnel) return;
+    try {
+      const count = await notificationService.getUnreadCount();
+      setUnreadCount(count);
+    } catch {
+      // silently ignore — bell just shows 0
+    }
+  }, [isAmbulancePersonnel]);
+
+  useEffect(() => {
+    fetchUnreadCount();
+  }, [fetchUnreadCount]);
+
+  // ── Real-time new notifications via Socket.IO ────────────────────────────
+  useEffect(() => {
+    if (!isAmbulancePersonnel) return;
+
+    const handleNewNotification = () => {
+      setUnreadCount((prev) => prev + 1);
+    };
+
+    socketService.onNewNotification(handleNewNotification);
+
+    return () => {
+      socketService.offNewNotification(handleNewNotification);
+    };
+  }, [isAmbulancePersonnel]);
+
+  // ── Close panels on outside click ───────────────────────────────────────
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowDropdown(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(event.target)) {
+        setShowNotifPanel(false);
       }
     };
 
@@ -24,58 +64,43 @@ function Navbar() {
   const handleLogout = () => {
     logout();
     setShowDropdown(false);
-    navigate('/login');
+    navigate('/');
+  };
+
+  const handleNotifBellClick = () => {
+    if (!isAmbulancePersonnel) return;
+    // Navigate directly to Feedback Management page
+    navigate('/feedback-management');
+    setShowNotifPanel(false);
   };
 
   const getUserInitial = () => {
-    if (user?.firstName) {
-      return user.firstName.charAt(0).toUpperCase();
-    }
-    if (user?.name) {
-      return user.name.charAt(0).toUpperCase();
-    }
-    if (user?.email) {
-      return user.email.charAt(0).toUpperCase();
-    }
+    if (user?.firstName) return user.firstName.charAt(0).toUpperCase();
+    if (user?.name) return user.name.charAt(0).toUpperCase();
+    if (user?.email) return user.email.charAt(0).toUpperCase();
     return 'U';
   };
 
   const getUserDisplayName = () => {
-    if (user?.name) {
-      return user.name;
-    }
-    if (user?.firstName && user?.lastName) {
-      return `${user.firstName} ${user.lastName}`;
-    }
-    if (user?.firstName) {
-      return user.firstName;
-    }
-    if (user?.email) {
-      return user.email.split('@')[0];
-    }
+    if (user?.name) return user.name;
+    if (user?.firstName && user?.lastName) return `${user.firstName} ${user.lastName}`;
+    if (user?.firstName) return user.firstName;
+    if (user?.email) return user.email.split('@')[0];
     return 'User';
   };
 
-  const getUserEmail = () => {
-    return user?.email || '';
-  };
+  const getUserEmail = () => user?.email || '';
+  const getUserRole = () => user?.role || '';
 
-  const getUserRole = () => {
-    return user?.role || '';
-  };
-
-  // Get the correct dashboard path for the current user
   const getDashboardLink = () => {
-    if (user && user.role) {
-      return getRoleDashboardPath(user.role);
-    }
-    return '/';
+    if (user?.role) return getRoleDashboardPath(user.role);
+    return '/login';
   };
 
   return (
     <nav className="bg-white shadow-sm sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-        
+
         {/* Logo */}
         <Link to={getDashboardLink()} className="flex items-center gap-2">
           <svg className="w-6 h-6 text-teal-600" fill="currentColor" viewBox="0 0 24 24">
@@ -96,15 +121,26 @@ function Navbar() {
             Help
           </Link>
 
-          {/* Notification Icon */}
-          <button 
-            onClick={() => alert('No new notifications')}
-            className="relative text-gray-600 hover:text-teal-600"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
-            </svg>
-          </button>
+          {/* Notification Bell */}
+          <div className="relative" ref={notifRef}>
+            <button
+              id="notification-bell-btn"
+              onClick={handleNotifBellClick}
+              title={isAmbulancePersonnel ? 'View feedback notifications' : 'Notifications'}
+              className="relative text-gray-600 hover:text-teal-600 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+              </svg>
+
+              {/* Unread badge — Ambulance Personnel only */}
+              {isAmbulancePersonnel && unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none shadow">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+          </div>
 
           {/* User Avatar with Dropdown */}
           <div className="relative" ref={dropdownRef}>
@@ -120,18 +156,12 @@ function Navbar() {
               <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg py-2 border border-gray-200">
                 {/* User Info */}
                 <div className="px-4 py-3 border-b border-gray-200">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {getUserDisplayName()}
-                  </p>
+                  <p className="text-sm font-semibold text-gray-900">{getUserDisplayName()}</p>
                   {getUserEmail() && (
-                    <p className="text-xs text-gray-600 truncate">
-                      {getUserEmail()}
-                    </p>
+                    <p className="text-xs text-gray-600 truncate">{getUserEmail()}</p>
                   )}
                   {getUserRole() && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      {getUserRole()}
-                    </p>
+                    <p className="text-xs text-gray-500 mt-1">{getUserRole()}</p>
                   )}
                 </div>
 
@@ -159,6 +189,25 @@ function Navbar() {
                     </svg>
                     Settings
                   </Link>
+
+                  {/* Feedback Management — Ambulance Personnel only */}
+                  {isAmbulancePersonnel && (
+                    <Link
+                      to="/feedback-management"
+                      onClick={() => setShowDropdown(false)}
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+                      </svg>
+                      Patient Feedback
+                      {unreadCount > 0 && (
+                        <span className="ml-auto bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                          {unreadCount}
+                        </span>
+                      )}
+                    </Link>
+                  )}
 
                   <div className="border-t border-gray-200 my-1"></div>
 

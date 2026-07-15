@@ -103,3 +103,17 @@ export const getAvailableAmbulances = catchAsync(async (req, res) => {
     data: { ambulances },
   });
 });
+
+export const updateOnlineStatus = catchAsync(async (req, res) => {
+  const { isOnline } = req.body;
+  const ambulance = await ambulanceService.updateOnlineStatus(
+    req.params.id,
+    isOnline
+  );
+
+  res.status(200).json({
+    status: 'success',
+    message: `Ambulance is now ${isOnline ? 'online' : 'offline'}`,
+    data: { ambulance },
+  });
+});

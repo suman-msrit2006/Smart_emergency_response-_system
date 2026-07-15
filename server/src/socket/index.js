@@ -73,6 +73,11 @@ export const initializeSocket = (server) => {
       timestamp: new Date(),
     });
 
+    // Auto-join user-specific room for targeted notifications
+    if (socket.userId) {
+      socket.join(`user_${socket.userId}`);
+    }
+
     // Setup domain-specific socket handlers
     setupAmbulanceSocket(io, socket);
     setupEmergencySocket(io, socket);

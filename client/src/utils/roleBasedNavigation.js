@@ -4,7 +4,7 @@
  */
 export const getRoleDashboardPath = (userRole) => {
   if (!userRole) {
-    return '/';
+    return '/login';
   }
 
   switch (userRole) {
@@ -13,7 +13,7 @@ export const getRoleDashboardPath = (userRole) => {
     case 'Ambulance Personnel':
       return '/ambulance-dashboard';
     default:
-      return '/';
+      return '/login';
   }
 };
 
@@ -39,6 +39,18 @@ export const canAccessRoute = (userRole, routePath) => {
   
   if (routePath === '/ambulance-dashboard') {
     return userRole === 'Ambulance Personnel';
+  }
+
+  if (routePath === '/feedback') {
+    return userRole === 'Patient';
+  }
+
+  if (routePath === '/feedback-management') {
+    return userRole === 'Ambulance Personnel';
+  }
+
+  if (routePath === '/emergency') {
+    return userRole === 'Patient';
   }
 
   // All other protected routes are accessible to authenticated users

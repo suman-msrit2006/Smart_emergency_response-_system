@@ -9,6 +9,7 @@ import {
   updateStatus,
   updateFuel,
   getAvailableAmbulances,
+  updateOnlineStatus,
 } from '../controllers/ambulanceController.js';
 
 import { protect, restrictTo } from '../middleware/auth.js';
@@ -52,7 +53,7 @@ router
 router.patch(
   '/:id/location',
   protect,
-  restrictTo('Ambulance Driver'),
+  restrictTo('Ambulance Personnel'),
   validateRequest(updateLocationSchema),
   updateLocation
 );
@@ -60,7 +61,7 @@ router.patch(
 router.patch(
   '/:id/status',
   protect,
-  restrictTo('Ambulance Driver', 'Hospital Admin'),
+  restrictTo('Ambulance Personnel', 'Hospital Admin'),
   validateRequest(updateStatusSchema),
   updateStatus
 );
@@ -68,9 +69,16 @@ router.patch(
 router.patch(
   '/:id/fuel',
   protect,
-  restrictTo('Ambulance Driver'),
+  restrictTo('Ambulance Personnel'),
   validateRequest(updateFuelSchema),
   updateFuel
+);
+
+router.patch(
+  '/:id/online-status',
+  protect,
+  restrictTo('Ambulance Personnel'),
+  updateOnlineStatus
 );
 
 export default router;

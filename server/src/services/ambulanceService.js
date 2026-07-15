@@ -130,6 +130,11 @@ export const updateLocation = async (ambulanceId, coordinates) => {
   }
 
   ambulance.location.coordinates = coordinates;
+  ambulance.currentLocation = {
+    type: 'Point',
+    coordinates: coordinates,
+  };
+  ambulance.lastLocationUpdate = new Date();
   await ambulance.save();
 
   // Emit real-time location update via Socket.IO
@@ -137,10 +142,24 @@ export const updateLocation = async (ambulanceId, coordinates) => {
     const io = getIO();
     if (io) {
       emitAmbulanceLocationUpdate(io, ambulanceId, {
-        location: ambulance.location,
+        location: ambulance.currentLocation,
         speed: ambulance.speed || null,
         heading: ambulance.heading || null,
+        timestamp: ambulance.lastLocationUpdate,
       });
+
+      // If ambulance has an active request, notify the patient
+      if (ambulance.currentRequest) {
+        const EmergencyRequest = (await import('../models/EmergencyRequest.js')).default;
+        const request = await EmergencyRequest.findById(ambulance.currentRequest);
+        if (request && request.patient) {
+          io.to(`user_${request.patient.toString()}`).emit('ambulance:location:updated', {
+            ambulanceId: ambulanceId,
+            location: ambulance.currentLocation,
+            timestamp: ambulance.lastLocationUpdate,
+          });
+        }
+      }
     }
   } catch (error) {
     logger.error('Socket emit failed for ambulance location:', error);
@@ -197,6 +216,7 @@ export const getAvailableAmbulances = async (longitude, latitude, maxDistance = 
 
   const ambulances = await Ambulance.find({
     status: 'Available',
+    isOnline: true,
     isActive: true,
     fuelLevel: { $gte: 20 },
     location: {
@@ -230,6 +250,40 @@ export const assignToEmergency = async (ambulanceId, emergencyId) => {
   ambulance.status = 'En Route';
   ambulance.currentEmergency = emergencyId;
   await ambulance.save();
+
+  return ambulance;
+};
+
+export const updateOnlineStatus = async (ambulanceId, isOnline) => {
+  const ambulance = await Ambulance.findById(ambulanceId);
+
+  if (!ambulance) {
+    throw new AppError('Ambulance not found', 404);
+  }
+
+  ambulance.isOnline = isOnline;
+  
+  // If going offline, set status to Out of Service
+  if (!isOnline && ambulance.status === 'Available') {
+    ambulance.status = 'Out of Service';
+  }
+  
+  // If coming online and not on active duty, set to Available
+  if (isOnline && ambulance.status === 'Out of Service' && !ambulance.currentRequest) {
+    ambulance.status = 'Available';
+  }
+
+  await ambulance.save();
+
+  // Emit status change via Socket.IO
+  try {
+    const io = getIO();
+    if (io) {
+      emitAmbulanceStatusChange(io, ambulance);
+    }
+  } catch (error) {
+    logger.error('Socket emit failed for ambulance online status:', error);
+  }
 
   return ambulance;
 };

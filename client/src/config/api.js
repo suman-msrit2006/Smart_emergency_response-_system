@@ -52,4 +52,10 @@ export const API_ENDPOINTS = {
     MY_FEEDBACKS: '/feedbacks/my-feedbacks',
     VOTE: (id) => `/feedbacks/${id}/vote`,
   },
+  NOTIFICATIONS: {
+    BASE: '/notifications',
+    UNREAD_COUNT: '/notifications/unread-count',
+    MARK_ALL_READ: '/notifications/mark-all-read',
+    MARK_READ: (id) => `/notifications/${id}/read`,
+  },
 };

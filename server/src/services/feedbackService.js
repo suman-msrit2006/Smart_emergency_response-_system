@@ -1,11 +1,87 @@
 import Feedback from '../models/Feedback.js';
+import EmergencyRequest from '../models/EmergencyRequest.js';
+import Ambulance from '../models/Ambulance.js';
+import User from '../models/User.js';
 import AppError from '../utils/AppError.js';
+import { createNotification } from './notificationService.js';
+import { logger } from '../utils/logger.js';
 
 export const createFeedback = async (feedbackData, userId) => {
   const feedback = await Feedback.create({
     ...feedbackData,
     user: userId,
   });
+
+  // ─── Auto-notify assigned ambulance personnel ─────────────────────────
+  try {
+    const emergencyId = feedbackData.relatedTo?.emergency;
+    const ambulanceId = feedbackData.relatedTo?.ambulance;
+
+    let personnelId = null;
+    let ambulanceNumber = 'N/A';
+    let hospitalName = 'N/A';
+    let emergencyRequestId = 'N/A';
+
+    // Try to resolve personnel from EmergencyRequest
+    if (emergencyId) {
+      const emergencyRequest = await EmergencyRequest.findById(emergencyId)
+        .populate('ambulancePersonnel', 'name')
+        .populate('assignedAmbulance', 'vehicleNumber')
+        .lean();
+
+      if (emergencyRequest) {
+        personnelId = emergencyRequest.ambulancePersonnel?._id;
+        ambulanceNumber = emergencyRequest.assignedAmbulance?.vehicleNumber || 'N/A';
+        emergencyRequestId = emergencyRequest.requestId || emergencyId.toString();
+      }
+    }
+
+    // Fallback: resolve personnel via Ambulance.driver
+    if (!personnelId && ambulanceId) {
+      const ambulance = await Ambulance.findById(ambulanceId).lean();
+      if (ambulance) {
+        personnelId = ambulance.driver;
+        ambulanceNumber = ambulance.vehicleNumber || 'N/A';
+      }
+    }
+
+    // Resolve hospital name
+    if (feedbackData.relatedTo?.hospital) {
+      const Hospital = (await import('../models/Hospital.js')).default;
+      const hospital = await Hospital.findById(feedbackData.relatedTo.hospital).lean();
+      if (hospital) hospitalName = hospital.name;
+    }
+
+    // Resolve patient name
+    const patient = await User.findById(userId).lean();
+    const patientName = patient?.name || 'Patient';
+
+    if (personnelId) {
+      await createNotification({
+        recipientId: personnelId,
+        type: 'feedback',
+        title: '⭐ New Patient Feedback Received',
+        message: `${patientName} rated your emergency service ${feedback.rating}/5 stars.`,
+        feedbackId: feedback._id,
+        meta: {
+          patientName,
+          patientId: userId,
+          emergencyId: emergencyRequestId,
+          ambulanceNumber,
+          hospitalName,
+          rating: feedback.rating,
+          comment: feedback.comment,
+        },
+      });
+      logger.info(`Feedback notification sent to ambulance personnel ${personnelId}`);
+    } else {
+      logger.warn(`Could not find ambulance personnel for feedback ${feedback._id} — no notification sent`);
+    }
+  } catch (notifError) {
+    // Never fail feedback submission because of notification errors
+    logger.error('Failed to create feedback notification:', notifError);
+  }
+  // ─────────────────────────────────────────────────────────────────────
 
   return feedback;
 };

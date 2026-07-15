@@ -4,7 +4,6 @@ import LoadingSpinner from "../components/LoadingSpinner";
 import ProtectedRoute from "../components/ProtectedRoute";
 
 // Lazy load pages for better performance
-const Home = lazy(() => import("../pages/Home"));
 const PatientDashboard = lazy(() => import("../pages/PatientDashboard"));
 const AmbulanceDashboard = lazy(() => import("../pages/AmbulanceDashboard"));
 const Emergency = lazy(() => import("../pages/Emergency"));
@@ -19,6 +18,7 @@ const Settings = lazy(() => import("../pages/Settings"));
 const Help = lazy(() => import("../pages/Help"));
 const Profile = lazy(() => import("../pages/Profile"));
 const NotFound = lazy(() => import("../pages/NotFound"));
+const FeedbackManagement = lazy(() => import("../pages/FeedbackManagement"));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -32,7 +32,7 @@ function AppRoutes() {
     <BrowserRouter>
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<Login />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/help" element={<Help />} />
@@ -117,6 +117,14 @@ function AppRoutes() {
             element={
               <ProtectedRoute>
                 <Profile />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/feedback-management" 
+            element={
+              <ProtectedRoute>
+                <FeedbackManagement />
               </ProtectedRoute>
             } 
           />

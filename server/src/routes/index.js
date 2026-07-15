@@ -3,10 +3,12 @@ import authRoutes from './authRoutes.js';
 import hospitalRoutes from './hospitalRoutes.js';
 import ambulanceRoutes from './ambulanceRoutes.js';
 import emergencyRoutes from './emergencyRoutes.js';
+import emergencyRequestRoutes from './emergencyRequestRoutes.js';
 import vitalRoutes from './vitalRoutes.js';
 import consultationRoutes from './consultationRoutes.js';
 import feedbackRoutes from './feedbackRoutes.js';
 import doctorRoutes from './doctorRoutes.js';
+import notificationRoutes from './notificationRoutes.js';
 
 const router = express.Router();
 
@@ -23,9 +25,11 @@ router.use('/auth', authRoutes);
 router.use('/hospitals', hospitalRoutes);
 router.use('/ambulances', ambulanceRoutes);
 router.use('/emergencies', emergencyRoutes);
+router.use('/emergency-requests', emergencyRequestRoutes);
 router.use('/vitals', vitalRoutes);
 router.use('/consultations', consultationRoutes);
 router.use('/feedbacks', feedbackRoutes);
 router.use('/doctors', doctorRoutes);
+router.use('/notifications', notificationRoutes);
 
 export default router;

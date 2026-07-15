@@ -132,6 +132,36 @@ class SocketService {
   onEmergencyAssigned(callback) {
     this.on('emergency:assigned', callback);
   }
+
+  // Emergency Request events (NEW)
+  onEmergencyRequestAccepted(callback) {
+    this.on('emergency:request:accepted', callback);
+  }
+
+  onEmergencyStatusUpdated(callback) {
+    this.on('emergency:status:updated', callback);
+  }
+
+  onAmbulanceLocationUpdated(callback) {
+    this.on('ambulance:location:updated', callback);
+  }
+
+  onEmergencyRequestNew(callback) {
+    this.on('emergency:request:new', callback);
+  }
+
+  onEmergencyRequestCancelled(callback) {
+    this.on('emergency:request:cancelled', callback);
+  }
+
+  // Notification events
+  onNewNotification(callback) {
+    this.on('notification:new', callback);
+  }
+
+  offNewNotification(callback) {
+    this.off('notification:new', callback);
+  }
 }
 
 export default new SocketService();

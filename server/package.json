@@ -7,6 +7,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "seed:ambulances": "node src/utils/seedAmbulances.js",
+    "seed:personnel": "node src/scripts/seedAmbulancePersonnel.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

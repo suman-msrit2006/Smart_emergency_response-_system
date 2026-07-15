@@ -18,7 +18,7 @@ function ProtectedRoute({ children }) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace state={{ from: location }} />;
   }
 
   // Check role-based access for dashboard routes

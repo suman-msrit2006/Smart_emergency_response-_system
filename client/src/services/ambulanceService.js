@@ -54,4 +54,11 @@ export const ambulanceService = {
     });
     return response.data.data.ambulances;
   },
+
+  updateOnlineStatus: async (id, isOnline) => {
+    const response = await axiosInstance.patch(`${API_ENDPOINTS.AMBULANCES.BASE}/${id}/online-status`, {
+      isOnline,
+    });
+    return response.data.data.ambulance;
+  },
 };

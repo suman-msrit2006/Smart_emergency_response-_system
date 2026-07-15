@@ -5,9 +5,10 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useWorkflow } from '../context/WorkflowContext';
 import { ambulanceService } from '../services/ambulanceService';
-import { emergencyService } from '../services/emergencyService';
+import emergencyRequestService from '../services/emergencyRequestService';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ToastContainer';
+import socketService from '../services/socketService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
 
@@ -58,11 +59,108 @@ export default function Emergency() {
   const [stats, setStats] = useState({ total: 0, available: 0, enroute: 0, fastest: null });
   const [mapCenter, setMapCenter] = useState([20.5937, 78.9629]);
   const [mapZoom, setMapZoom] = useState(5);
-  const [emergencyId, setEmergencyId] = useState(null);
+  const [emergencyRequestId, setEmergencyRequestId] = useState(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [selectedAmbulanceId, setSelectedAmbulanceId] = useState(null);
+  const [requestStatus, setRequestStatus] = useState(null); // 'pending', 'accepted', 'rejected'
+  const [acceptedAmbulance, setAcceptedAmbulance] = useState(null);
+  const [ambulanceLocation, setAmbulanceLocation] = useState(null);
   
   const intervalRef = useRef(null);
+
+  // Connect to Socket.IO on mount
+  useEffect(() => {
+    socketService.connect();
+
+    return () => {
+      socketService.disconnect();
+    };
+  }, []);
+
+  // Listen for emergency request acceptance
+  useEffect(() => {
+    const handleRequestAccepted = (data) => {
+      console.log('Emergency request accepted:', data);
+      
+      setRequestStatus('accepted');
+      setAcceptedAmbulance(data.request.ambulance);
+      setAmbulanceLocation(data.request.ambulance.location);
+      
+      toast.success(`Ambulance ${data.request.ambulance.vehicleNumber} accepted your request!`);
+      
+      setSearchStatus({
+        message: `✅ Ambulance ${data.request.ambulance.vehicleNumber} is on the way!`,
+        type: 'success'
+      });
+
+      // Update selected ambulance with real data
+      setSelectedAmbulance({
+        id: data.request.ambulance.id,
+        vehicleNumber: data.request.ambulance.vehicleNumber,
+        type: data.request.ambulance.type,
+        location: data.request.ambulance.location
+      });
+
+      // Navigate to hospital selection after 3 seconds
+      setTimeout(() => {
+        setWorkflowStep('hospital');
+        navigate('/hospital');
+      }, 3000);
+    };
+
+    const handleStatusUpdate = (data) => {
+      console.log('Emergency status updated:', data);
+      
+      setSearchStatus({
+        message: `Status: ${data.status}`,
+        type: 'info'
+      });
+    };
+
+    const handleAmbulanceLocationUpdate = (data) => {
+      console.log('Ambulance location updated:', data);
+      
+      // Update ambulance location in real-time
+      setAmbulanceLocation(data.location);
+      
+      // Update ambulance in list if it exists
+      setAmbulances(prev => prev.map(amb => 
+        amb.id === data.ambulanceId 
+          ? { 
+              ...amb, 
+              lat: data.location.coordinates[1], 
+              lng: data.location.coordinates[0] 
+            }
+          : amb
+      ));
+    };
+
+    // Register event listeners
+    socketService.on('emergency:request:accepted', handleRequestAccepted);
+    socketService.on('emergency:status:updated', handleStatusUpdate);
+    socketService.on('ambulance:location:updated', handleAmbulanceLocationUpdate);
+
+    // Cleanup
+    return () => {
+      socketService.off('emergency:request:accepted', handleRequestAccepted);
+      socketService.off('emergency:status:updated', handleStatusUpdate);
+      socketService.off('ambulance:location:updated', handleAmbulanceLocationUpdate);
+    };
+  }, [toast, navigate, setSelectedAmbulance, setWorkflowStep]);
+
+  // Haversine distance calculation
+  const haversineDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
 
   // Fetch ambulances from API
   const fetchAmbulances = async (longitude, latitude, maxDistance = 50000) => {
@@ -78,9 +176,11 @@ export default function Emergency() {
       const transformedAmbulances = data.map(amb => ({
         id: amb._id || amb.id,
         vehicleNumber: amb.vehicleNumber,
+        driverName: amb.driver?.name || 'Driver',
+        hospitalName: amb.hospital?.name || 'Hospital',
         lat: amb.currentLocation?.coordinates?.[1] || 0,
         lng: amb.currentLocation?.coordinates?.[0] || 0,
-        status: amb.status,
+        status: amb.status?.toLowerCase() || 'available', // Normalize to lowercase
         type: amb.type,
         equipment: amb.equipment,
       }));
@@ -91,7 +191,16 @@ export default function Emergency() {
       );
       
       if (validAmbulances.length > 0) {
-        setAmbulances(validAmbulances);
+        // Calculate distances immediately if user location is known
+        let ambulancesWithDistance = validAmbulances;
+        if (latitude && longitude) {
+          ambulancesWithDistance = validAmbulances.map(amb => ({
+            ...amb,
+            distance: haversineDistance(latitude, longitude, amb.lat, amb.lng),
+          }));
+        }
+        
+        setAmbulances(ambulancesWithDistance);
         toast.success(`Found ${validAmbulances.length} ambulances nearby`);
         return;
       }
@@ -171,7 +280,8 @@ export default function Emergency() {
         distance: haversineDistance(userLoc.lat, userLoc.lng, amb.lat, amb.lng),
       }));
       
-      const nearby = updated.filter(amb => amb.distance <= 5);
+      // Filter ambulances within 50km (not 5km)
+      const nearby = updated.filter(amb => amb.distance <= 50);
       const available = nearby.filter(amb => amb.status === 'available').sort((a, b) => a.distance - b.distance);
       const enroute = nearby.filter(amb => amb.status === 'enroute');
       
@@ -192,18 +302,6 @@ export default function Emergency() {
       }
     }
   }, [userLoc]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const haversineDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
 
   const handleSearch = async () => {
     if (!placeSearch.trim()) {
@@ -243,43 +341,6 @@ export default function Emergency() {
       // Fetch nearby ambulances from API
       await fetchAmbulances(newLocation.lng, newLocation.lat, 50000); // 50km radius
       
-      // Create emergency request
-      const userId = user?.id || user?._id;
-      try {
-        const emergencyData = {
-          patient: userId || 'guest-patient',
-          type: 'Other',
-          severity: 'High',
-          description: 'Emergency request from live dashboard',
-          location: {
-            type: 'Point',
-            coordinates: [newLocation.lng, newLocation.lat],
-            address: place.display_name,
-          },
-          contactNumber: user?.phone || '911',
-        };
-        
-        const emergency = await emergencyService.create(emergencyData);
-        
-        if (emergency && (emergency._id || emergency.id)) {
-          const emergId = emergency._id || emergency.id;
-          setEmergencyId(emergId);
-          localStorage.setItem('current_emergency_id', emergId);
-          toast.success('Emergency request created successfully');
-        }
-        
-        // Save user info regardless of emergency creation success
-        if (userId) {
-          localStorage.setItem('user_id', userId);
-        }
-        localStorage.setItem('user_phone', user?.phone || '911');
-        localStorage.setItem('user_location', JSON.stringify(newLocation));
-      } catch (error) {
-        // Error creating emergency - continue without emergency ID
-        toast.warning('Location found, but emergency record not created');
-        // Continue without emergency ID - ambulance dispatch will still work
-      }
-      
       setSearchStatus({ message: `Found ${newLocation.name}`, type: 'success' });
       toast.success(`Found ${newLocation.name}`);
     } catch {
@@ -290,137 +351,101 @@ export default function Emergency() {
     }
   };
 
-  const handleDemo = async () => {
-    const demos = [
-      { name: 'Connaught Place Delhi', lat: 28.6315, lng: 77.2199 },
-      { name: 'Bandra Mumbai', lat: 19.0610, lng: 72.8348 },
-      { name: 'Koramangala Bangalore', lat: 12.9279, lng: 77.6285 },
-      { name: 'T Nagar Chennai', lat: 13.0400, lng: 80.2300 },
-    ];
-    const demo = demos[Math.floor(Math.random() * demos.length)];
-    setPlaceSearch(demo.name);
-    const newLocation = { lat: demo.lat, lng: demo.lng, name: demo.name };
-    setUserLoc(newLocation);
-    setUserLocation(newLocation);
-    setMapCenter([demo.lat, demo.lng]);
-    setMapZoom(12);
-    
-    // Fetch nearby ambulances
-    await fetchAmbulances(demo.lng, demo.lat, 50000);
-    
-    // Create demo emergency request
-    const userId = user?.id || user?._id;
-    try {
-      const emergencyData = {
-        patient: userId || 'guest-patient',
-        type: 'Other',
-        severity: 'High',
-        description: 'Demo emergency request',
-        location: {
-          type: 'Point',
-          coordinates: [demo.lng, demo.lat],
-          address: demo.name,
-        },
-        contactNumber: user?.phone || '911',
-      };
-      
-      const emergency = await emergencyService.create(emergencyData);
-      
-      if (emergency && (emergency._id || emergency.id)) {
-        const emergId = emergency._id || emergency.id;
-        setEmergencyId(emergId);
-        localStorage.setItem('current_emergency_id', emergId);
-      }
-      
-      // Save user info regardless
-      if (userId) {
-        localStorage.setItem('user_id', userId);
-      }
-      localStorage.setItem('user_phone', user?.phone || '911');
-      localStorage.setItem('user_location', JSON.stringify(newLocation));
-      
-      setSearchStatus({ message: `Demo location: ${demo.name}`, type: 'success' });
-    } catch (error) {
-      // Error creating demo emergency - continue with demo location
-      setSearchStatus({ message: `Demo location: ${demo.name}`, type: 'success' });
+  const handleAcceptAmbulance = async (ambulanceId) => {
+    if (!ambulanceId) {
+      toast.warning('Please select an ambulance first');
+      return;
     }
-  };
 
-  const handleAcceptAmbulance = async () => {
-    if (!stats.fastest) {
-      setSearchStatus({ 
-        message: 'No available ambulance found. Please search for your location first.', 
-        type: 'warning' 
-      });
-      toast.warning('No available ambulance found. Please search for your location first.');
+    if (!userLoc) {
+      toast.error('Please search your location first');
+      return;
+    }
+
+    const selectedAmb = ambulances.find(amb => amb.id === ambulanceId);
+    if (!selectedAmb) {
+      toast.error('Ambulance not found');
       return;
     }
 
     setSearchStatus({ 
-      message: `Dispatching ${stats.fastest.id}... Please wait.`, 
+      message: `Creating emergency request...`, 
       type: 'info' 
     });
-    toast.info(`Dispatching ${stats.fastest.id}...`);
+    toast.info(`Creating emergency request...`);
 
-    // Save to workflow context
-    setSelectedAmbulance(stats.fastest);
-    
-    // Save to localStorage for persistence
-    localStorage.setItem('selected_ambulance_id', stats.fastest.id);
-    localStorage.setItem('selected_ambulance', JSON.stringify(stats.fastest));
-    
-    // Assign ambulance to emergency if emergency was created
-    if (emergencyId) {
-      try {
-        const estimatedArrival = new Date(Date.now() + 15 * 60000).toISOString(); // 15 minutes estimated arrival
-        await emergencyService.assignAmbulance(
-          emergencyId,
-          stats.fastest.id,
-          estimatedArrival
-        );
+    try {
+      // Create emergency request
+      const requestData = {
+        patientName: user?.name || 'Patient',
+        patientPhone: user?.phone || '911',
+        location: {
+          longitude: userLoc.lng,
+          latitude: userLoc.lat,
+          address: userLoc.name || 'Unknown location',
+        },
+        emergencyType: 'Medical',
+        severity: 'High',
+        notes: `Emergency request for ambulance ${ambulanceId}`,
+      };
+
+      const response = await emergencyRequestService.createEmergencyRequest(requestData);
+      
+      if (response.status === 'success' && response.data.emergencyRequest) {
+        const requestId = response.data.emergencyRequest._id;
+        setEmergencyRequestId(requestId);
+        
+        // Save to workflow context
+        setSelectedAmbulance(selectedAmb);
+        
+        // Save to localStorage for persistence
+        localStorage.setItem('emergency_request_id', requestId);
+        localStorage.setItem('selected_ambulance_id', ambulanceId);
+        localStorage.setItem('selected_ambulance', JSON.stringify(selectedAmb));
         
         setSearchStatus({ 
-          message: `✅ ${stats.fastest.id} dispatched! Proceeding to hospital selection...`, 
+          message: `✅ Emergency request sent! Waiting for ambulance personnel to accept...`, 
           type: 'success' 
         });
-        toast.success(`${stats.fastest.id} dispatched successfully!`);
-      } catch (error) {
-        // Error assigning ambulance - continue anyway since data is saved in context and localStorage
-        setSearchStatus({ 
-          message: `${stats.fastest.id} selected. Proceeding to hospital selection...`, 
-          type: 'success' 
-        });
-        toast.warning('Ambulance selected (assignment not confirmed with server)');
+        toast.success(`Emergency request created! Request ID: ${response.data.emergencyRequest.requestId}`);
+        
+        // Set pending status
+        setRequestStatus('pending');
+        setSelectedAmbulanceId(ambulanceId);
+        
+      } else {
+        throw new Error('Failed to create emergency request');
       }
-    } else {
+      
+    } catch (error) {
+      console.error('Error creating emergency request:', error);
       setSearchStatus({ 
-        message: `${stats.fastest.id} selected. Proceeding to hospital selection...`, 
-        type: 'success' 
+        message: `Failed to create emergency request. Please try again.`, 
+        type: 'danger' 
       });
-      toast.success(`${stats.fastest.id} selected!`);
+      toast.error('Failed to create emergency request. Please try again.');
+      setRequestStatus(null);
+      setSelectedAmbulanceId(null);
     }
-    
-    setWorkflowStep('hospital');
-    setTimeout(() => navigate('/hospital'), 1500);
   };
 
   const availableAmbulances = userLoc
-    ? ambulances.filter(amb => amb.distance <= 5 && amb.status === 'available').sort((a, b) => a.distance - b.distance)
+    ? ambulances.filter(amb => amb.distance <= 50 && amb.status === 'available').sort((a, b) => a.distance - b.distance)
     : [];
 
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-      <div className="container mx-auto px-4 py-8">
-        {/* HEADER */}
-        <div className="text-center text-white mb-8">
-          <h1 className="text-4xl font-bold mb-3">Live Ambulance Dashboard</h1>
-          <p className="text-xl">Enter your location to find available ambulances nearby</p>
+      <div className="container mx-auto px-4 py-4">
+        {/* HEADER - Reduced spacing */}
+        <div className="text-center text-white mb-4">
+          <h1 className="text-3xl font-bold mb-2">Live Ambulance Dashboard</h1>
+          <p className="text-lg">Enter your location to find available ambulances nearby</p>
         </div>
 
-        {/* SEARCH SECTION */}
-        <div className="max-w-5xl mx-auto mb-8">
-          <div className="bg-white bg-opacity-95 rounded-3xl p-8 shadow-2xl">
-            <h3 className="text-2xl font-semibold text-blue-600 mb-6 text-center">Enter Your Location</h3>
+        {/* SEARCH SECTION - Reduced padding and spacing */}
+        <div className="max-w-5xl mx-auto mb-4">
+          <div className="bg-white bg-opacity-95 rounded-2xl p-4 shadow-2xl">
+            <h3 className="text-xl font-semibold text-blue-600 mb-3 text-center">Enter Your Location</h3>
             <div className="flex gap-3 flex-wrap">
               <input
                 type="text"
@@ -428,31 +453,24 @@ export default function Emergency() {
                 onChange={(e) => setPlaceSearch(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                 disabled={searchLoading}
-                className="flex-1 px-4 py-3 text-lg border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                className="flex-1 px-4 py-2 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                 placeholder="Enter place name e.g., Connaught Place Delhi, Bandra Mumbai, etc."
               />
               <button 
                 onClick={handleSearch} 
                 disabled={searchLoading}
-                className="px-6 py-3 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-2 bg-blue-600 text-white text-base font-semibold rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {searchLoading ? 'Searching...' : 'Search'}
               </button>
-              <button 
-                onClick={handleDemo} 
-                disabled={searchLoading}
-                className="px-6 py-3 bg-white border-2 border-blue-600 text-blue-600 text-lg font-semibold rounded-lg hover:bg-blue-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Demo
-              </button>
             </div>
             {searchLoading && (
-              <div className="mt-4">
+              <div className="mt-3">
                 <LoadingSpinner size="sm" message="" />
               </div>
             )}
             {searchStatus.message && !searchLoading && (
-              <div className={`mt-4 p-4 rounded-lg font-bold text-center ${
+              <div className={`mt-3 p-3 rounded-lg font-bold text-center ${
                 searchStatus.type === 'success' ? 'bg-green-100 text-green-800' :
                 searchStatus.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
                 searchStatus.type === 'info' ? 'bg-blue-100 text-blue-800' :
@@ -464,42 +482,42 @@ export default function Emergency() {
           </div>
         </div>
 
-        {/* STATS PANEL */}
+        {/* STATS PANEL - Reduced padding and spacing */}
         {userLoc && (
-          <div className="max-w-5xl mx-auto mb-8">
-            <div className="rounded-2xl p-8 text-white shadow-xl" style={{ background: 'linear-gradient(135deg, #00b894, #00cec9)' }}>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="max-w-5xl mx-auto mb-4">
+            <div className="rounded-xl p-4 text-white shadow-xl" style={{ background: 'linear-gradient(135deg, #00b894, #00cec9)' }}>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center">
-                  <div className="text-4xl font-bold mb-2">{stats.total}</div>
-                  <div>Total Nearby (5km)</div>
+                  <div className="text-3xl font-bold mb-1">{stats.total}</div>
+                  <div className="text-sm">Total Nearby (50km)</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-4xl font-bold mb-2" style={{ color: '#00ff88', textShadow: '0 0 10px #00ff88' }}>
+                  <div className="text-3xl font-bold mb-1" style={{ color: '#00ff88', textShadow: '0 0 10px #00ff88' }}>
                     {stats.available}
                   </div>
-                  <div><strong>AVAILABLE</strong></div>
+                  <div className="text-sm"><strong>AVAILABLE</strong></div>
                 </div>
                 <div className="text-center">
-                  <div className="text-4xl font-bold mb-2 text-yellow-300">{stats.enroute}</div>
-                  <div>En Route</div>
+                  <div className="text-3xl font-bold mb-1 text-yellow-300">{stats.enroute}</div>
+                  <div className="text-sm">En Route</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-4xl font-bold mb-2 animate-pulse">
+                  <div className="text-3xl font-bold mb-1 animate-pulse">
                     {stats.fastest ? stats.fastest.id : '-'}
                   </div>
-                  <div>{stats.fastest ? `${stats.fastest.distance.toFixed(1)} km` : '-'}</div>
+                  <div className="text-sm">{stats.fastest ? `${stats.fastest.distance.toFixed(1)} km` : '-'}</div>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* MAP & LIST */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        {/* MAP & LIST - Reduced height and spacing */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
           {/* MAP */}
-          <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-xl">
-            <h4 className="text-xl font-semibold mb-4">Live Tracking Map</h4>
-            <div style={{ height: '500px', borderRadius: '10px', overflow: 'hidden' }}>
+          <div className="lg:col-span-2 bg-white p-4 rounded-xl shadow-xl">
+            <h4 className="text-lg font-semibold mb-3">Live Tracking Map</h4>
+            <div style={{ height: '380px', borderRadius: '10px', overflow: 'hidden' }}>
               <MapContainer center={mapCenter} zoom={mapZoom} style={{ height: '100%', width: '100%' }}>
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -523,8 +541,10 @@ export default function Emergency() {
                   >
                     <Popup>
                       <div className="p-2">
-                        <h6 className="font-bold">{amb.id}</h6>
-                        <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
+                        <h6 className="font-bold text-sm">{amb.vehicleNumber}</h6>
+                        <p className="text-xs text-gray-700 mt-1">👨‍⚕️ {amb.driverName}</p>
+                        <p className="text-xs text-gray-600">🏥 {amb.hospitalName}</p>
+                        <span className={`inline-block px-2 py-1 rounded text-xs font-bold mt-2 ${
                           amb.status === 'available' ? 'bg-green-500 text-white' :
                           amb.status === 'enroute' ? 'bg-yellow-500 text-black' :
                           'bg-red-500 text-white'
@@ -532,7 +552,7 @@ export default function Emergency() {
                           {amb.status.toUpperCase()}
                         </span>
                         {userLoc && amb.distance && (
-                          <div className="font-bold mt-1">{amb.distance.toFixed(1)} km away</div>
+                          <div className="font-bold mt-1 text-sm">{amb.distance.toFixed(1)} km away</div>
                         )}
                       </div>
                     </Popup>
@@ -542,47 +562,85 @@ export default function Emergency() {
             </div>
           </div>
 
-          {/* AMBULANCE LIST */}
-          <div className="bg-white p-6 rounded-2xl shadow-xl">
-            <h4 className="text-xl font-semibold mb-4">Available Ambulances</h4>
-            <div className="space-y-3 overflow-y-auto" style={{ maxHeight: '500px' }}>
+          {/* AMBULANCE LIST - Reduced height and spacing */}
+          <div className="bg-white p-4 rounded-xl shadow-xl">
+            <h4 className="text-lg font-semibold mb-3">Available Ambulances</h4>
+            <div className="space-y-2 overflow-y-auto" style={{ maxHeight: '380px' }}>
               {initialLoading ? (
                 <LoadingSpinner size="md" message="Loading ambulances..." />
               ) : availableAmbulances.length === 0 ? (
                 <EmptyState
                   icon="🚑"
                   title={userLoc ? "No Ambulances Nearby" : "Search Your Location"}
-                  message={userLoc ? "No available ambulances found within 5km of your location." : "Enter your location to find available ambulances nearby."}
+                  message={userLoc ? "No available ambulances found within 50km of your location." : "Enter your location to find available ambulances nearby."}
                 />
+              ) : requestStatus === 'pending' ? (
+                <div className="text-center py-6">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-3"></div>
+                  <h3 className="text-base font-bold text-gray-900 mb-2">Request Sent</h3>
+                  <p className="text-sm text-gray-600 mb-3">Waiting for ambulance personnel to accept your request...</p>
+                  <div className="bg-blue-50 p-3 rounded-lg">
+                    <p className="text-xs text-blue-800">
+                      <strong>Ambulance:</strong> {ambulances.find(a => a.id === selectedAmbulanceId)?.vehicleNumber || selectedAmbulanceId}
+                    </p>
+                  </div>
+                </div>
+              ) : requestStatus === 'accepted' ? (
+                <div className="text-center py-6">
+                  <div className="text-5xl mb-3">✅</div>
+                  <h3 className="text-base font-bold text-green-600 mb-2">Request Accepted!</h3>
+                  <p className="text-sm text-gray-600 mb-3">Ambulance {ambulances.find(a => a.id === selectedAmbulanceId)?.vehicleNumber || selectedAmbulanceId} is on the way</p>
+                  <p className="text-xs text-gray-500">Redirecting to hospital selection...</p>
+                </div>
               ) : (
                 availableAmbulances.map((amb, index) => (
                   <div
                     key={amb.id}
-                    className={`p-4 rounded-lg border-l-4 ${
-                      index === 0
+                    className={`p-3 rounded-lg border-l-4 transition-all ${
+                      selectedAmbulanceId === amb.id
+                        ? 'bg-blue-100 border-blue-500 ring-2 ring-blue-300'
+                        : index === 0
                         ? 'bg-gradient-to-r from-yellow-100 to-yellow-200 border-red-500'
-                        : 'bg-green-50 border-green-500'
+                        : 'bg-green-50 border-green-500 hover:bg-green-100 cursor-pointer'
                     }`}
+                    onClick={() => setSelectedAmbulanceId(amb.id)}
                   >
                     <div className="flex justify-between items-start">
-                      <div>
-                        <h5 className="font-bold text-lg flex items-center gap-2">
-                          {amb.id}
-                          <span className="bg-green-500 text-white px-2 py-1 rounded text-xs">AVAILABLE</span>
-                          {index === 0 && <span className="bg-red-500 text-white px-2 py-1 rounded text-xs">FASTEST</span>}
+                      <div className="flex-1">
+                        <h5 className="font-bold text-base flex items-center gap-2 flex-wrap">
+                          {amb.vehicleNumber}
+                          <span className="bg-green-500 text-white px-2 py-0.5 rounded text-xs">AVAILABLE</span>
+                          {index === 0 && <span className="bg-red-500 text-white px-2 py-0.5 rounded text-xs">FASTEST</span>}
+                          {selectedAmbulanceId === amb.id && <span className="bg-blue-500 text-white px-2 py-0.5 rounded text-xs">SELECTED</span>}
                         </h5>
-                        <small className="text-gray-600">Live tracking active</small>
+                        <div className="mt-1 space-y-0.5">
+                          <div className="text-gray-700 text-xs font-medium">
+                            👨‍⚕️ {amb.driverName}
+                          </div>
+                          <div className="text-gray-600 text-xs">
+                            🏥 {amb.hospitalName}
+                          </div>
+                          <div className="text-gray-600 text-xs">
+                            {amb.type || 'Advanced Life Support'} • Live tracking active
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-bold text-xl text-green-600">{amb.distance.toFixed(1)} km away</div>
-                        <button 
-                          onClick={() => alert(`Calling ambulance ${amb.id}...`)}
-                          className="mt-2 bg-green-500 text-white px-4 py-1 rounded text-sm hover:bg-green-600 transition"
-                        >
-                          CALL NOW
-                        </button>
+                      <div className="text-right ml-3">
+                        <div className="font-bold text-lg text-green-600">{amb.distance.toFixed(1)} km</div>
+                        <div className="text-xs text-gray-600">~{Math.ceil(amb.distance * 4)} min</div>
                       </div>
                     </div>
+                    {selectedAmbulanceId === amb.id && (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAcceptAmbulance(amb.id);
+                        }}
+                        className="mt-2 w-full bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition"
+                      >
+                        ✅ REQUEST THIS AMBULANCE
+                      </button>
+                    )}
                   </div>
                 ))
               )}
@@ -590,28 +648,78 @@ export default function Emergency() {
           </div>
         </div>
 
-        {/* ACCEPT BUTTON */}
-        <div className="text-center">
-          <button
-            onClick={handleAcceptAmbulance}
-            disabled={!stats.fastest}
-            className={`px-12 py-4 text-xl font-bold rounded-full transition shadow-lg ${
-              stats.fastest
-                ? 'bg-green-500 text-white hover:bg-green-600 cursor-pointer animate-pulse'
-                : 'bg-gray-400 text-gray-200 cursor-not-allowed'
-            }`}
-            title={!stats.fastest ? 'Search for your location first' : `Dispatch ${stats.fastest.id}`}
-          >
-            {stats.fastest 
-              ? `✅ ACCEPT & DISPATCH ${stats.fastest.id}` 
-              : '🔍 Search Location First'}
-          </button>
-          {stats.fastest && (
-            <p className="mt-4 text-white text-lg">
-              📍 {stats.fastest.distance.toFixed(1)} km away • ⏱️ ~{Math.ceil(stats.fastest.distance * 4)} min ETA
+        {/* REQUEST BUTTON - Improved visibility for bottom message */}
+        {userLoc && !requestStatus && (
+          <div className="max-w-3xl mx-auto">
+            {selectedAmbulanceId ? (
+              <div className="text-center">
+                <button
+                  onClick={() => handleAcceptAmbulance(selectedAmbulanceId)}
+                  className="px-10 py-3 text-lg font-bold rounded-full transition shadow-lg bg-green-500 text-white hover:bg-green-600 cursor-pointer animate-pulse"
+                >
+                  ✅ REQUEST AMBULANCE {ambulances.find(a => a.id === selectedAmbulanceId)?.vehicleNumber || selectedAmbulanceId}
+                </button>
+                <p className="mt-3 text-white text-base bg-black bg-opacity-30 rounded-lg p-2 inline-block">
+                  📍 {ambulances.find(a => a.id === selectedAmbulanceId)?.distance.toFixed(1)} km away • 
+                  ⏱️ ~{Math.ceil(ambulances.find(a => a.id === selectedAmbulanceId)?.distance * 4)} min ETA
+                </p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl p-4 shadow-lg border-2 border-blue-300">
+                <div className="flex items-center justify-center gap-3">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-gray-800 text-lg font-semibold">
+                    👆 Select an ambulance from the list above to send a request
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* WAITING STATUS - Reduced size */}
+        {requestStatus === 'pending' && (
+          <div className="max-w-2xl mx-auto bg-white bg-opacity-95 rounded-xl p-6 shadow-lg">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2 text-center">Request Sent to {selectedAmbulanceId}</h2>
+            <p className="text-base text-gray-600 mb-3 text-center">
+              Waiting for ambulance personnel to accept your request...
             </p>
-          )}
-        </div>
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <p className="text-sm text-blue-800 text-center">
+                <strong>Status:</strong> Pending Response<br />
+                <strong>Ambulance:</strong> {selectedAmbulanceId}<br />
+                <strong>Distance:</strong> {ambulances.find(a => a.id === selectedAmbulanceId)?.distance.toFixed(1)} km
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ACCEPTED STATUS - Reduced size */}
+        {requestStatus === 'accepted' && acceptedAmbulance && (
+          <div className="max-w-2xl mx-auto bg-white bg-opacity-95 rounded-xl p-6 shadow-lg">
+            <div className="text-6xl mb-3 text-center">✅</div>
+            <h2 className="text-2xl font-bold text-green-600 mb-2 text-center">Request Accepted!</h2>
+            <p className="text-base text-gray-600 mb-4 text-center">
+              Ambulance {acceptedAmbulance.vehicleNumber} is on the way
+            </p>
+            <div className="bg-green-50 p-4 rounded-lg mb-3">
+              <div className="grid grid-cols-2 gap-3 text-left">
+                <div>
+                  <p className="text-xs text-gray-600">Vehicle Number</p>
+                  <p className="text-base font-bold text-gray-900">{acceptedAmbulance.vehicleNumber}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600">Type</p>
+                  <p className="text-base font-bold text-gray-900">{acceptedAmbulance.type}</p>
+                </div>
+              </div>
+            </div>
+            <p className="text-sm text-gray-500 text-center">Redirecting to hospital selection...</p>
+          </div>
+        )}
       </div>
     </div>
   );

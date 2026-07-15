@@ -41,6 +41,25 @@ const ambulanceSchema = new mongoose.Schema(
         default: [0, 0],
       },
     },
+    currentLocation: {
+      type: {
+        type: String,
+        enum: ['Point'],
+        default: 'Point',
+      },
+      coordinates: {
+        type: [Number],
+        default: [0, 0],
+      },
+    },
+    lastLocationUpdate: {
+      type: Date,
+      default: null,
+    },
+    isOnline: {
+      type: Boolean,
+      default: false,
+    },
     status: {
       type: String,
       enum: ['Available', 'En Route', 'On Scene', 'Transporting', 'At Hospital', 'Out of Service'],
@@ -118,6 +137,11 @@ const ambulanceSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Emergency',
     },
+    currentRequest: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'EmergencyRequest',
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -127,10 +151,12 @@ const ambulanceSchema = new mongoose.Schema(
 );
 
 ambulanceSchema.index({ location: '2dsphere' });
+ambulanceSchema.index({ currentLocation: '2dsphere' });
 ambulanceSchema.index({ vehicleNumber: 1 });
 ambulanceSchema.index({ status: 1 });
 ambulanceSchema.index({ hospital: 1 });
 ambulanceSchema.index({ driver: 1 });
+ambulanceSchema.index({ isOnline: 1 });
 
 ambulanceSchema.virtual('isAvailable').get(function () {
   return this.status === 'Available' && this.isActive && this.fuelLevel > 10;
