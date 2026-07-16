@@ -4,8 +4,20 @@ import axiosInstance from './axiosInstance';
  * Create a new emergency request
  */
 export const createEmergencyRequest = async (requestData) => {
-  const response = await axiosInstance.post('/emergency-requests', requestData);
-  return response.data;
+  try {
+    console.log('[emergencyRequestService] Sending request to:', '/emergency-requests');
+    console.log('[emergencyRequestService] Request data:', requestData);
+    
+    const response = await axiosInstance.post('/emergency-requests', requestData);
+    
+    console.log('[emergencyRequestService] Response received:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('[emergencyRequestService] Error:', error);
+    console.error('[emergencyRequestService] Error message:', error.message);
+    console.error('[emergencyRequestService] Error response:', error.response);
+    throw error;
+  }
 };
 
 /**

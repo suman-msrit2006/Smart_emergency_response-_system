@@ -1,14 +1,28 @@
 import * as emergencyRequestService from '../services/emergencyRequestService.js';
 import catchAsync from '../utils/catchAsync.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Create a new emergency request (Patient only)
  */
 export const createEmergencyRequest = catchAsync(async (req, res) => {
+  // Log incoming request for debugging
+  logger.info('Creating emergency request', {
+    patient: req.user._id,
+    patientEmail: req.user.email,
+    location: req.body.location,
+  });
+
   const emergencyRequest = await emergencyRequestService.createRequest(
     req.body,
     req.user._id
   );
+
+  logger.info(`Emergency request created successfully: ${emergencyRequest.requestId}`, {
+    requestId: emergencyRequest.requestId,
+    patient: req.user.email,
+    status: emergencyRequest.status,
+  });
 
   res.status(201).json({
     status: 'success',

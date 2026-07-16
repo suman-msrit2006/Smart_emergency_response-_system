@@ -12,6 +12,7 @@ const Vitals = lazy(() => import("../pages/Vitals"));
 const Doctor = lazy(() => import("../pages/Doctor"));
 const Discharge = lazy(() => import("../pages/Discharge"));
 const Feedback = lazy(() => import("../pages/Feedback"));
+const EmergencyRequests = lazy(() => import("../pages/EmergencyRequests"));
 const Login = lazy(() => import("../pages/Login"));
 const Register = lazy(() => import("../pages/Register"));
 const Settings = lazy(() => import("../pages/Settings"));
@@ -19,6 +20,8 @@ const Help = lazy(() => import("../pages/Help"));
 const Profile = lazy(() => import("../pages/Profile"));
 const NotFound = lazy(() => import("../pages/NotFound"));
 const FeedbackManagement = lazy(() => import("../pages/FeedbackManagement"));
+const Debug = lazy(() => import("../pages/Debug"));
+const Cleanup = lazy(() => import("../pages/Cleanup"));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -105,6 +108,14 @@ function AppRoutes() {
             } 
           />
           <Route 
+            path="/emergency-requests" 
+            element={
+              <ProtectedRoute>
+                <EmergencyRequests />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
             path="/settings" 
             element={
               <ProtectedRoute>
@@ -128,6 +139,9 @@ function AppRoutes() {
               </ProtectedRoute>
             } 
           />
+          
+          <Route path="/debug" element={<Debug />} />
+          <Route path="/cleanup" element={<Cleanup />} />
           
           <Route path="*" element={<NotFound />} />
         </Routes>

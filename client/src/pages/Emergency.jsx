@@ -48,9 +48,16 @@ function MapUpdater({ center, zoom }) {
 
 export default function Emergency() {
   const navigate = useNavigate();
-  const { setUserLocation, setSelectedAmbulance, setWorkflowStep } = useWorkflow();
   const { user } = useAuth();
+  const { setUserLocation, setSelectedAmbulance, setWorkflowStep } = useWorkflow();
   const toast = useToast();
+
+  // Redirect Ambulance Personnel to their dashboard
+  useEffect(() => {
+    if (user && user.role === 'Ambulance Personnel') {
+      navigate('/ambulance-dashboard', { replace: true });
+    }
+  }, [user, navigate]);
   
   const [placeSearch, setPlaceSearch] = useState('');
   const [searchStatus, setSearchStatus] = useState({ message: '', type: '' });
@@ -378,7 +385,7 @@ export default function Emergency() {
       // Create emergency request
       const requestData = {
         patientName: user?.name || 'Patient',
-        patientPhone: user?.phone || '911',
+        patientPhone: user?.phone || user?.phoneNumber || '1234567890',
         location: {
           longitude: userLoc.lng,
           latitude: userLoc.lat,
@@ -389,7 +396,16 @@ export default function Emergency() {
         notes: `Emergency request for ambulance ${ambulanceId}`,
       };
 
+      console.log('=== FRONTEND: Creating Emergency Request ===');
+      console.log('Request Data:', JSON.stringify(requestData, null, 2));
+      console.log('User:', user);
+      console.log('User phone:', user?.phone);
+      console.log('Token exists:', !!localStorage.getItem('token'));
+
       const response = await emergencyRequestService.createEmergencyRequest(requestData);
+      
+      console.log('=== FRONTEND: Response Received ===');
+      console.log('Response:', JSON.stringify(response, null, 2));
       
       if (response.status === 'success' && response.data.emergencyRequest) {
         const requestId = response.data.emergencyRequest._id;
@@ -418,12 +434,17 @@ export default function Emergency() {
       }
       
     } catch (error) {
-      console.error('Error creating emergency request:', error);
+      console.error('=== FRONTEND: Error Creating Emergency Request ===');
+      console.error('Error object:', error);
+      console.error('Error message:', error.message);
+      console.error('Error status:', error.status);
+      console.error('Error response:', error.response);
+      
       setSearchStatus({ 
         message: `Failed to create emergency request. Please try again.`, 
         type: 'danger' 
       });
-      toast.error('Failed to create emergency request. Please try again.');
+      toast.error(error.message || 'Failed to create emergency request. Please try again.');
       setRequestStatus(null);
       setSelectedAmbulanceId(null);
     }

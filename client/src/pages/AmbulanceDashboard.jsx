@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import Navbar from "../components/Navbar";
-import EmergencyRequestQueue from "../components/EmergencyRequestQueue";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { notificationService } from "../services/notificationService";
 import { ambulanceService } from "../services/ambulanceService";
@@ -20,6 +21,15 @@ const STATUS_FLOW = {
 
 function AmbulanceDashboard() {
   const toast = useToast();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect Patients to their dashboard
+  useEffect(() => {
+    if (user && user.role === 'Patient') {
+      navigate('/patient-dashboard', { replace: true });
+    }
+  }, [user, navigate]);
 
   const [unreadCount, setUnreadCount] = useState(0);
   const [latestFeedback, setLatestFeedback] = useState(null);
@@ -31,6 +41,7 @@ function AmbulanceDashboard() {
   const [togglingOnline, setTogglingOnline] = useState(false);
   const [activeAssignment, setActiveAssignment] = useState(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
 
   const ambulanceId = ambulance?._id;
 
@@ -68,11 +79,35 @@ function AmbulanceDashboard() {
     }
   }, []);
 
+  const loadPendingCount = useCallback(async () => {
+    if (!position) return;
+    try {
+      const response = await emergencyRequestService.getPendingRequests(
+        position.longitude,
+        position.latitude,
+        50000
+      );
+      setPendingCount(response.data?.requests?.length || 0);
+    } catch {
+      setPendingCount(0);
+    }
+  }, [position]);
+
   useEffect(() => {
     socketService.connect();
     loadAmbulance();
     loadActiveAssignment();
   }, [loadAmbulance, loadActiveAssignment]);
+
+  // Load pending count when position is available
+  useEffect(() => {
+    if (isOnline && position) {
+      loadPendingCount();
+      // Refresh pending count every 30 seconds
+      const interval = setInterval(loadPendingCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [isOnline, position, loadPendingCount]);
 
   const fetchUnread = useCallback(async () => {
     try {
@@ -97,9 +132,27 @@ function AmbulanceDashboard() {
       }
     };
 
+    const handleNewRequest = () => {
+      // Increment pending count when new request arrives
+      setPendingCount((prev) => prev + 1);
+      toast.info('New emergency request received!');
+    };
+
+    const handleRequestAccepted = () => {
+      // Reload assignment when a request is accepted
+      loadActiveAssignment();
+    };
+
     socketService.onNewNotification(handleNewNotification);
-    return () => socketService.offNewNotification(handleNewNotification);
-  }, []);
+    socketService.onEmergencyRequestNew(handleNewRequest);
+    socketService.on('emergency:request:accepted', handleRequestAccepted);
+
+    return () => {
+      socketService.offNewNotification(handleNewNotification);
+      socketService.off('emergency:request:new', handleNewRequest);
+      socketService.off('emergency:request:accepted', handleRequestAccepted);
+    };
+  }, [toast, loadActiveAssignment]);
 
   const handleToggleOnline = async () => {
     if (!ambulanceId) {
@@ -122,13 +175,9 @@ function AmbulanceDashboard() {
     }
   };
 
-  const handleRequestAccepted = (request) => {
-    setActiveAssignment(request);
-    toast.success(`Emergency ${request.requestId} accepted!`);
-  };
-
-  const handleNewRequest = (incoming) => {
-    toast.warning(`New emergency request from ${incoming.patientName}`);
+  const handleRequestAccepted = () => {
+    loadActiveAssignment();
+    loadPendingCount();
   };
 
   const handleAdvanceStatus = async () => {
@@ -294,23 +343,53 @@ function AmbulanceDashboard() {
         </section>
       )}
 
-      {/* Emergency Request Queue */}
-      <section id="emergency-requests" className="px-6 py-8">
+      {/* Emergency Request Queue - REMOVED, moved to /emergency-requests page */}
+      {/* Summary Card Instead */}
+      <section className="px-6 py-8">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Incoming Emergency Requests</h2>
-          {!activeAssignment ? (
-            <EmergencyRequestQueue
-              ambulanceId={ambulanceId}
-              ambulanceCoords={position}
-              isOnline={isOnline}
-              onRequestAccepted={handleRequestAccepted}
-              onNewRequest={handleNewRequest}
-            />
-          ) : (
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 text-sm text-gray-600 text-center">
-              Complete your active assignment before accepting new requests.
+          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Emergency Requests</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {!isOnline ? (
+                      'Go online to receive emergency requests'
+                    ) : activeAssignment ? (
+                      'Complete your active assignment before accepting new requests'
+                    ) : pendingCount > 0 ? (
+                      `${pendingCount} pending request${pendingCount > 1 ? 's' : ''} waiting for response`
+                    ) : (
+                      'No pending requests at this time'
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                {isOnline && !activeAssignment && pendingCount > 0 && (
+                  <div className="mb-2">
+                    <span className="inline-block bg-red-500 text-white text-2xl font-bold px-4 py-2 rounded-full animate-pulse">
+                      {pendingCount}
+                    </span>
+                  </div>
+                )}
+                <Link
+                  to="/emergency-requests"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition"
+                >
+                  View All Requests
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/>
+                  </svg>
+                </Link>
+              </div>
             </div>
-          )}
+          </div>
         </div>
       </section>
 
@@ -338,8 +417,8 @@ function AmbulanceDashboard() {
               <div className="text-xs text-gray-600">Active Assignment</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-teal-600 mb-1">{unreadCount}</div>
-              <div className="text-xs text-gray-600">Feedback Alerts</div>
+              <div className="text-3xl font-bold text-teal-600 mb-1">{pendingCount}</div>
+              <div className="text-xs text-gray-600">Pending Requests</div>
             </div>
           </div>
         </div>
@@ -354,10 +433,15 @@ function AmbulanceDashboard() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-            <a
-              href="#emergency-requests"
-              className="group bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 p-6 flex flex-col"
+            <Link
+              to="/emergency-requests"
+              className="group bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 p-6 flex flex-col relative"
             >
+              {pendingCount > 0 && (
+                <span className="absolute top-3 right-3 min-w-[28px] h-[28px] px-2 bg-red-500 text-white text-sm font-bold rounded-full flex items-center justify-center shadow-lg animate-pulse">
+                  {pendingCount > 99 ? '99+' : pendingCount}
+                </span>
+              )}
               <div className="flex justify-center mb-4">
                 <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
                   <svg className="w-7 h-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -369,9 +453,11 @@ function AmbulanceDashboard() {
                 Emergency Requests
               </h3>
               <p className="text-xs text-gray-600 text-center mb-4 flex-grow">
-                View and accept incoming emergency requests
+                {pendingCount > 0 
+                  ? `${pendingCount} pending request${pendingCount > 1 ? 's' : ''} waiting` 
+                  : 'View and accept incoming emergency requests'}
               </p>
-            </a>
+            </Link>
 
             <Link
               to="/hospital"

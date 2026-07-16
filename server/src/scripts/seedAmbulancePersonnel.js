@@ -262,14 +262,6 @@ const CITIES_DATA = {
 
 
 /**
- * Hash password using bcrypt (same as User model pre-save hook)
- */
-async function hashPassword(password) {
-  const salt = await bcrypt.genSalt(12);
-  return await bcrypt.hash(password, salt);
-}
-
-/**
  * Create or find a hospital
  */
 async function createHospital(hospitalData, location) {
@@ -335,14 +327,12 @@ async function createPersonnel(personnelData, organization) {
       return user;
     }
 
-    // Hash password manually (since we're not using model's pre-save when checking)
-    const hashedPassword = await hashPassword(personnelData.password);
-
-    // Create new user
+    // Create new user - DO NOT hash password here
+    // The User model's pre-save hook will automatically hash it
     user = await User.create({
       name: personnelData.name,
       email: personnelData.email,
-      password: hashedPassword,
+      password: personnelData.password, // Plain password - model will hash it
       phone: personnelData.phone,
       role: 'Ambulance Personnel',
       employeeId: personnelData.employeeId,

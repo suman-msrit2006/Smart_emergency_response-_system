@@ -9,6 +9,13 @@
     "dev": "node --watch src/server.js",
     "seed:ambulances": "node src/utils/seedAmbulances.js",
     "seed:personnel": "node src/scripts/seedAmbulancePersonnel.js",
+    "seed:patient": "node src/scripts/createTestPatient.js",
+    "clean:personnel": "node src/scripts/cleanAmbulancePersonnel.js",
+    "reseed:personnel": "node src/scripts/cleanAmbulancePersonnel.js && node src/scripts/seedAmbulancePersonnel.js",
+    "clean:requests": "node src/scripts/cleanEmergencyRequests.js",
+    "clean:all": "node src/scripts/cleanEmergencyRequests.js && node src/scripts/cleanAmbulancePersonnel.js",
+    "clean:full": "node src/scripts/fullCleanup.js",
+    "reset:test": "node src/scripts/cleanEmergencyRequests.js && node src/scripts/cleanAmbulancePersonnel.js && node src/scripts/seedAmbulancePersonnel.js && node src/scripts/createTestPatient.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

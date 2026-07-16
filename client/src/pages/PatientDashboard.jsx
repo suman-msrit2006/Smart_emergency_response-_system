@@ -1,7 +1,19 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
 import Navbar from "../components/Navbar";
 
 function PatientDashboard() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Redirect Ambulance Personnel to their dashboard
+  useEffect(() => {
+    if (user && user.role === 'Ambulance Personnel') {
+      navigate('/ambulance-dashboard', { replace: true });
+    }
+  }, [user, navigate]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />

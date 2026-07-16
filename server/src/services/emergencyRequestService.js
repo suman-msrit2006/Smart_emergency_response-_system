@@ -11,82 +11,111 @@ import { validateCoordinates, validateMaxDistance } from '../utils/validateCoord
  * @param {String} patientId - Patient user ID
  */
 export const createRequest = async (requestData, patientId) => {
-  // Check if patient has an active request
-  const activeRequest = await EmergencyRequest.findOne({
-    patient: patientId,
-    isActive: true,
-    status: { $in: ['PENDING', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'PATIENT_PICKED'] },
-  });
-
-  if (activeRequest) {
-    throw new AppError('You already have an active emergency request', 400);
-  }
-
-  // Validate location coordinates
-  const { longitude, latitude } = requestData.location;
-  validateCoordinates([longitude, latitude], 'location');
-
-  // Create emergency request
-  const emergencyRequest = await EmergencyRequest.create({
-    patient: patientId,
-    patientName: requestData.patientName,
-    patientPhone: requestData.patientPhone,
-    location: {
-      type: 'Point',
-      coordinates: [longitude, latitude],
-      address: requestData.location.address,
-    },
-    emergencyType: requestData.emergencyType || 'Other',
-    severity: requestData.severity || 'Medium',
-    notes: requestData.notes || '',
-  });
-
-  // Find nearby available ambulances
-  const maxDistance = 50000; // 50km
-  const nearbyAmbulances = await Ambulance.find({
-    status: 'Available',
-    isOnline: true,
-    isActive: true,
-    fuelLevel: { $gte: 20 },
-    location: {
-      $near: {
-        $geometry: {
-          type: 'Point',
-          coordinates: [longitude, latitude],
-        },
-        $maxDistance: maxDistance,
-      },
-    },
-  }).limit(10);
-
-  // Emit real-time notification to nearby ambulances via Socket.IO
   try {
-    const io = getIO();
-    if (io && nearbyAmbulances.length > 0) {
-      nearbyAmbulances.forEach((ambulance) => {
-        if (ambulance.driver) {
-          io.to(`user_${ambulance.driver.toString()}`).emit('emergency:request:new', {
-            requestId: emergencyRequest._id,
-            request: {
-              id: emergencyRequest._id,
-              requestId: emergencyRequest.requestId,
-              patientName: emergencyRequest.patientName,
-              location: emergencyRequest.location,
-              emergencyType: emergencyRequest.emergencyType,
-              severity: emergencyRequest.severity,
-              createdAt: emergencyRequest.createdAt,
-            },
-          });
-        }
-      });
+    logger.info('=== CREATE EMERGENCY REQUEST START ===');
+    logger.info('Patient ID:', patientId);
+    logger.info('Request Data:', JSON.stringify(requestData, null, 2));
 
-      logger.info(`Emergency request ${emergencyRequest.requestId} broadcast to ${nearbyAmbulances.length} ambulances`);
+    // Check if patient has an active request
+    const activeRequest = await EmergencyRequest.findOne({
+      patient: patientId,
+      isActive: true,
+      status: { $in: ['PENDING', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'PATIENT_PICKED'] },
+    });
+
+    if (activeRequest) {
+      logger.warn('Patient already has active request:', activeRequest.requestId);
+      throw new AppError('You already have an active emergency request', 400);
     }
-  } catch (error) {
-    logger.error('Socket emit failed for emergency request:', error);
-  }
 
-  return emergencyRequest;
+    // Validate location coordinates
+    const { longitude, latitude } = requestData.location;
+    logger.info('Validating coordinates:', { longitude, latitude });
+    validateCoordinates([longitude, latitude], 'location');
+
+    // Prepare emergency request data
+    const emergencyData = {
+      patient: patientId,
+      patientName: requestData.patientName,
+      patientPhone: requestData.patientPhone,
+      location: {
+        type: 'Point',
+        coordinates: [longitude, latitude],
+        address: requestData.location.address,
+      },
+      emergencyType: requestData.emergencyType || 'Other',
+      severity: requestData.severity || 'Medium',
+      notes: requestData.notes || '',
+    };
+
+    logger.info('Creating emergency request with data:', JSON.stringify(emergencyData, null, 2));
+
+    // Create emergency request
+    const emergencyRequest = await EmergencyRequest.create(emergencyData);
+
+    logger.info('Emergency request created successfully:', {
+      id: emergencyRequest._id,
+      requestId: emergencyRequest.requestId,
+    });
+
+    // Find nearby available ambulances
+    const maxDistance = 50000; // 50km
+    const nearbyAmbulances = await Ambulance.find({
+      status: 'Available',
+      isOnline: true,
+      isActive: true,
+      fuelLevel: { $gte: 20 },
+      location: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [longitude, latitude],
+          },
+          $maxDistance: maxDistance,
+        },
+      },
+    }).limit(10);
+
+    // Emit real-time notification to nearby ambulances via Socket.IO
+    try {
+      const io = getIO();
+      if (io && nearbyAmbulances.length > 0) {
+        nearbyAmbulances.forEach((ambulance) => {
+          if (ambulance.driver) {
+            io.to(`user_${ambulance.driver.toString()}`).emit('emergency:request:new', {
+              requestId: emergencyRequest._id,
+              request: {
+                id: emergencyRequest._id,
+                requestId: emergencyRequest.requestId,
+                patientName: emergencyRequest.patientName,
+                location: emergencyRequest.location,
+                emergencyType: emergencyRequest.emergencyType,
+                severity: emergencyRequest.severity,
+                createdAt: emergencyRequest.createdAt,
+              },
+            });
+          }
+        });
+
+        logger.info(`Emergency request ${emergencyRequest.requestId} broadcast to ${nearbyAmbulances.length} ambulances`);
+      }
+    } catch (error) {
+      logger.error('Socket emit failed for emergency request:', error);
+    }
+
+    logger.info('=== CREATE EMERGENCY REQUEST END (SUCCESS) ===');
+    return emergencyRequest;
+
+  } catch (error) {
+    logger.error('=== CREATE EMERGENCY REQUEST FAILED ===');
+    logger.error('Error type:', error.name);
+    logger.error('Error message:', error.message);
+    logger.error('Error stack:', error.stack);
+    if (error.errors) {
+      logger.error('Validation errors:', JSON.stringify(error.errors, null, 2));
+    }
+    throw error;
+  }
 };
 
 /**
