@@ -19,10 +19,11 @@ export const getRoleDashboardPath = (userRole) => {
 
 /**
  * Check if a user has permission to access a specific route based on their role
+ * STRICT ENFORCEMENT: Each route must explicitly allow the role
  */
 export const canAccessRoute = (userRole, routePath) => {
   // Public routes - accessible to all
-  const publicRoutes = ['/', '/login', '/register', '/help'];
+  const publicRoutes = ['/', '/login', '/register', '/help', '/debug', '/cleanup'];
   if (publicRoutes.includes(routePath)) {
     return true;
   }
@@ -32,28 +33,47 @@ export const canAccessRoute = (userRole, routePath) => {
     return false;
   }
 
-  // Role-specific dashboard restrictions
+  // PATIENT-ONLY ROUTES
   if (routePath === '/patient-dashboard') {
     return userRole === 'Patient';
   }
   
-  if (routePath === '/ambulance-dashboard') {
-    return userRole === 'Ambulance Personnel';
+  if (routePath === '/emergency') {
+    return userRole === 'Patient';
   }
 
   if (routePath === '/feedback') {
     return userRole === 'Patient';
   }
 
+  // AMBULANCE PERSONNEL-ONLY ROUTES
+  if (routePath === '/ambulance-dashboard') {
+    return userRole === 'Ambulance Personnel';
+  }
+
+  if (routePath === '/emergency-requests') {
+    return userRole === 'Ambulance Personnel';
+  }
+
   if (routePath === '/feedback-management') {
     return userRole === 'Ambulance Personnel';
   }
 
-  if (routePath === '/emergency') {
-    return userRole === 'Patient';
+  // SHARED ROUTES - accessible to both authenticated roles
+  // These are pages both Patient and Ambulance Personnel can access
+  const sharedRoutes = [
+    '/hospital',
+    '/vitals',
+    '/doctor',
+    '/discharge',
+    '/settings',
+    '/profile',
+  ];
+  
+  if (sharedRoutes.includes(routePath)) {
+    return userRole === 'Patient' || userRole === 'Ambulance Personnel';
   }
 
-  // All other protected routes are accessible to authenticated users
-  // (emergency, hospital, vitals, doctor, discharge, feedback, settings, profile)
-  return true;
+  // Default deny for any unrecognized route
+  return false;
 };

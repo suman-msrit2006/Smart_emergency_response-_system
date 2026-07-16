@@ -158,14 +158,20 @@ export default function FeedbackManagement() {
   const [filter, setFilter] = useState('all'); // 'all' | 'unread' | 'read'
   const [markingAll, setMarkingAll] = useState(false);
 
-  // Guard: only Ambulance Personnel can view this page
+  // Role verification - redirect immediately if wrong role
+  const isAmbulancePersonnel = user?.role === 'Ambulance Personnel';
+
+  // Guard: only Ambulance Personnel can view this page - redirect BEFORE API calls
   useEffect(() => {
-    if (user && user.role !== 'Ambulance Personnel') {
+    if (user && !isAmbulancePersonnel) {
       navigate(getRoleDashboardPath(user.role), { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, isAmbulancePersonnel, navigate]);
 
   const fetchNotifications = useCallback(async () => {
+    if (!user) return; // Wait for user to load
+    if (!isAmbulancePersonnel) return; // Only for ambulance personnel
+    
     try {
       setLoading(true);
       setError(null);
@@ -178,13 +184,19 @@ export default function FeedbackManagement() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAmbulancePersonnel, user]);
 
   useEffect(() => {
+    if (!user) return; // Wait for user to load
+    if (!isAmbulancePersonnel) return; // Wrong role - will be redirected
+    
     fetchNotifications();
-  }, [fetchNotifications]);
+  }, [isAmbulancePersonnel, user, fetchNotifications]);
 
   const handleMarkRead = async (id) => {
+    // CRITICAL: Double-check role before making API call
+    if (!user || !isAmbulancePersonnel) return;
+    
     try {
       await notificationService.markAsRead(id);
       setNotifications((prev) =>
@@ -196,6 +208,9 @@ export default function FeedbackManagement() {
   };
 
   const handleMarkAllRead = async () => {
+    // CRITICAL: Double-check role before making API call
+    if (!user || !isAmbulancePersonnel) return;
+    
     try {
       setMarkingAll(true);
       await notificationService.markAllAsRead();

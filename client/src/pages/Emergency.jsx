@@ -52,12 +52,15 @@ export default function Emergency() {
   const { setUserLocation, setSelectedAmbulance, setWorkflowStep } = useWorkflow();
   const toast = useToast();
 
-  // Redirect Ambulance Personnel to their dashboard
+  // Role verification - redirect immediately if wrong role
+  const isPatient = user?.role === 'Patient';
+
+  // Redirect Ambulance Personnel to their dashboard BEFORE any logic executes
   useEffect(() => {
-    if (user && user.role === 'Ambulance Personnel') {
+    if (user && !isPatient) {
       navigate('/ambulance-dashboard', { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, isPatient, navigate]);
   
   const [placeSearch, setPlaceSearch] = useState('');
   const [searchStatus, setSearchStatus] = useState({ message: '', type: '' });
@@ -76,17 +79,24 @@ export default function Emergency() {
   
   const intervalRef = useRef(null);
 
-  // Connect to Socket.IO on mount
+  // Connect to Socket.IO on mount - only for patients
+  // CRITICAL: Wait for role verification before connecting
   useEffect(() => {
+    if (!user) return; // Wait for user to load
+    if (!isPatient) return; // Wrong role - will be redirected
+    
     socketService.connect();
 
     return () => {
       socketService.disconnect();
     };
-  }, []);
+  }, [isPatient, user]);
 
-  // Listen for emergency request acceptance
+  // Listen for emergency request acceptance - only for patients
   useEffect(() => {
+    if (!user) return; // Wait for user to load
+    if (!isPatient) return; // Wrong role - will be redirected
+    
     const handleRequestAccepted = (data) => {
       console.log('Emergency request accepted:', data);
       
@@ -154,7 +164,7 @@ export default function Emergency() {
       socketService.off('emergency:status:updated', handleStatusUpdate);
       socketService.off('ambulance:location:updated', handleAmbulanceLocationUpdate);
     };
-  }, [toast, navigate, setSelectedAmbulance, setWorkflowStep]);
+  }, [isPatient, user, toast, navigate, setSelectedAmbulance, setWorkflowStep]);
 
   // Haversine distance calculation
   const haversineDistance = (lat1, lon1, lat2, lon2) => {
@@ -251,8 +261,12 @@ export default function Emergency() {
     }
   };
 
-  // Initialize ambulances
+  // Initialize ambulances - only for patients
+  // CRITICAL: Wait for role verification before making API calls
   useEffect(() => {
+    if (!user) return; // Wait for user to load
+    if (!isPatient) return; // Wrong role - will be redirected
+    
     // Load all ambulances initially
     const loadInitialData = async () => {
       setInitialLoading(true);
@@ -262,7 +276,7 @@ export default function Emergency() {
     
     loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isPatient, user]);
 
   // Live tracking simulation
   useEffect(() => {
@@ -359,6 +373,12 @@ export default function Emergency() {
   };
 
   const handleAcceptAmbulance = async (ambulanceId) => {
+    // CRITICAL: Double-check role before making API call
+    if (!user || !isPatient) {
+      toast.error('Unauthorized action.');
+      return;
+    }
+    
     if (!ambulanceId) {
       toast.warning('Please select an ambulance first');
       return;

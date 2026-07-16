@@ -25,7 +25,8 @@ function ProtectedRoute({ children }) {
   const currentPath = location.pathname;
   const userRole = user?.role;
 
-  // If user tries to access wrong dashboard, redirect to correct one
+  // CRITICAL: Block access and redirect BEFORE rendering if wrong role
+  // This prevents any useEffect or component logic from executing
   if (!canAccessRoute(userRole, currentPath)) {
     const correctDashboard = getRoleDashboardPath(userRole);
     return <Navigate to={correctDashboard} replace />;

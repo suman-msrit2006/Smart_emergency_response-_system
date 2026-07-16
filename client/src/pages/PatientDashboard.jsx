@@ -7,12 +7,15 @@ function PatientDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // Redirect Ambulance Personnel to their dashboard
+  // Role verification - redirect immediately if wrong role
+  const isPatient = user?.role === 'Patient';
+
+  // Redirect Ambulance Personnel to their dashboard BEFORE any logic executes
   useEffect(() => {
-    if (user && user.role === 'Ambulance Personnel') {
+    if (user && !isPatient) {
       navigate('/ambulance-dashboard', { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, isPatient, navigate]);
 
   return (
     <div className="min-h-screen bg-gray-50">

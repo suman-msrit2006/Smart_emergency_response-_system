@@ -24,13 +24,6 @@ function AmbulanceDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect Patients to their dashboard
-  useEffect(() => {
-    if (user && user.role === 'Patient') {
-      navigate('/patient-dashboard', { replace: true });
-    }
-  }, [user, navigate]);
-
   const [unreadCount, setUnreadCount] = useState(0);
   const [latestFeedback, setLatestFeedback] = useState(null);
   const [showBanner, setShowBanner] = useState(false);
@@ -44,6 +37,16 @@ function AmbulanceDashboard() {
   const [pendingCount, setPendingCount] = useState(0);
 
   const ambulanceId = ambulance?._id;
+  
+  // Role verification - redirect immediately if wrong role
+  const isAmbulancePersonnel = user?.role === 'Ambulance Personnel';
+
+  // Redirect Patients to their dashboard BEFORE any logic executes
+  useEffect(() => {
+    if (user && !isAmbulancePersonnel) {
+      navigate('/patient-dashboard', { replace: true });
+    }
+  }, [user, isAmbulancePersonnel, navigate]);
 
   const handleGpsError = useCallback(
     (message) => toast.error(message),
@@ -93,23 +96,36 @@ function AmbulanceDashboard() {
     }
   }, [position]);
 
+  // CRITICAL: Wait for role verification to complete before making API calls
+  // This useEffect waits until after the redirect logic has had a chance to execute
   useEffect(() => {
+    // If user exists but is not ambulance personnel, the earlier useEffect will redirect
+    // So we only proceed if user is ambulance personnel
+    if (!user) return; // Wait for user to load
+    if (!isAmbulancePersonnel) return; // Wrong role - will be redirected by earlier useEffect
+    
+    // Only execute ambulance logic after role is verified
     socketService.connect();
     loadAmbulance();
     loadActiveAssignment();
-  }, [loadAmbulance, loadActiveAssignment]);
+  }, [isAmbulancePersonnel, user, loadAmbulance, loadActiveAssignment]);
 
-  // Load pending count when position is available
+  // Load pending count when position is available - only for ambulance personnel
   useEffect(() => {
-    if (isOnline && position) {
-      loadPendingCount();
-      // Refresh pending count every 30 seconds
-      const interval = setInterval(loadPendingCount, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [isOnline, position, loadPendingCount]);
+    if (!user) return; // Wait for user to load
+    if (!isAmbulancePersonnel) return; // Wrong role
+    if (!isOnline || !position) return;
+    
+    loadPendingCount();
+    // Refresh pending count every 30 seconds
+    const interval = setInterval(loadPendingCount, 30000);
+    return () => clearInterval(interval);
+  }, [isAmbulancePersonnel, user, isOnline, position, loadPendingCount]);
 
   const fetchUnread = useCallback(async () => {
+    if (!user) return; // Wait for user to load
+    if (!isAmbulancePersonnel) return; // Wrong role
+    
     try {
       const count = await notificationService.getUnreadCount();
       setUnreadCount(count);
@@ -117,13 +133,19 @@ function AmbulanceDashboard() {
     } catch {
       // silently ignore
     }
-  }, []);
+  }, [isAmbulancePersonnel, user]);
 
   useEffect(() => {
+    if (!user) return; // Wait for user to load
+    if (!isAmbulancePersonnel) return; // Wrong role
+    
     fetchUnread();
-  }, [fetchUnread]);
+  }, [isAmbulancePersonnel, user, fetchUnread]);
 
   useEffect(() => {
+    if (!user) return; // Wait for user to load
+    if (!isAmbulancePersonnel) return; // Wrong role
+    
     const handleNewNotification = ({ notification }) => {
       if (notification?.type === "feedback") {
         setUnreadCount((prev) => prev + 1);
@@ -152,9 +174,15 @@ function AmbulanceDashboard() {
       socketService.off('emergency:request:new', handleNewRequest);
       socketService.off('emergency:request:accepted', handleRequestAccepted);
     };
-  }, [toast, loadActiveAssignment]);
+  }, [isAmbulancePersonnel, user, toast, loadActiveAssignment]);
 
   const handleToggleOnline = async () => {
+    // CRITICAL: Double-check role before making API call
+    if (!user || !isAmbulancePersonnel) {
+      toast.error("Unauthorized action.");
+      return;
+    }
+    
     if (!ambulanceId) {
       toast.error("No ambulance assigned to your account.");
       return;
@@ -181,6 +209,12 @@ function AmbulanceDashboard() {
   };
 
   const handleAdvanceStatus = async () => {
+    // CRITICAL: Double-check role before making API call
+    if (!user || !isAmbulancePersonnel) {
+      toast.error("Unauthorized action.");
+      return;
+    }
+    
     if (!activeAssignment) return;
 
     const flow = STATUS_FLOW[activeAssignment.status];

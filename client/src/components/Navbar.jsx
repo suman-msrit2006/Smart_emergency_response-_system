@@ -17,23 +17,27 @@ function Navbar() {
   const isAmbulancePersonnel = user?.role === 'Ambulance Personnel';
 
   // ── Fetch unread count on mount (Ambulance Personnel only) ──────────────
+  // CRITICAL: Wait for user and role verification before making API calls
   const fetchUnreadCount = useCallback(async () => {
-    if (!isAmbulancePersonnel) return;
+    if (!user) return; // Wait for user to load
+    if (!isAmbulancePersonnel) return; // Only for ambulance personnel
     try {
       const count = await notificationService.getUnreadCount();
       setUnreadCount(count);
     } catch {
       // silently ignore — bell just shows 0
     }
-  }, [isAmbulancePersonnel]);
+  }, [isAmbulancePersonnel, user]);
 
   useEffect(() => {
+    if (!user) return; // Wait for user to load
     fetchUnreadCount();
-  }, [fetchUnreadCount]);
+  }, [user, fetchUnreadCount]);
 
   // ── Real-time new notifications via Socket.IO ────────────────────────────
   useEffect(() => {
-    if (!isAmbulancePersonnel) return;
+    if (!user) return; // Wait for user to load
+    if (!isAmbulancePersonnel) return; // Only for ambulance personnel
 
     const handleNewNotification = () => {
       setUnreadCount((prev) => prev + 1);

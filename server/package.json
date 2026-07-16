@@ -10,6 +10,7 @@
     "seed:ambulances": "node src/utils/seedAmbulances.js",
     "seed:personnel": "node src/scripts/seedAmbulancePersonnel.js",
     "seed:patient": "node src/scripts/createTestPatient.js",
+    "link:ambulances": "node src/scripts/linkAmbulanceToPersonnel.js",
     "clean:personnel": "node src/scripts/cleanAmbulancePersonnel.js",
     "reseed:personnel": "node src/scripts/cleanAmbulancePersonnel.js && node src/scripts/seedAmbulancePersonnel.js",
     "clean:requests": "node src/scripts/cleanEmergencyRequests.js",

@@ -9,6 +9,8 @@ import consultationRoutes from './consultationRoutes.js';
 import feedbackRoutes from './feedbackRoutes.js';
 import doctorRoutes from './doctorRoutes.js';
 import notificationRoutes from './notificationRoutes.js';
+import devResetRoutes from './devResetRoutes.js';
+import config from '../config/env.js';
 
 const router = express.Router();
 
@@ -31,5 +33,10 @@ router.use('/consultations', consultationRoutes);
 router.use('/feedbacks', feedbackRoutes);
 router.use('/doctors', doctorRoutes);
 router.use('/notifications', notificationRoutes);
+
+// Development-only routes (enabled in development environment)
+if (config.env === 'development') {
+  router.use('/dev', devResetRoutes);
+}
 
 export default router;

@@ -183,12 +183,15 @@ export default function EmergencyRequests() {
   const [lastRefresh, setLastRefresh] = useState(null);
   const pollRef = useRef(null);
 
-  // Guard: only Ambulance Personnel
+  // Role verification - redirect immediately if wrong role
+  const isAmbulancePersonnel = user?.role === 'Ambulance Personnel';
+
+  // Guard: only Ambulance Personnel - redirect BEFORE any API calls
   useEffect(() => {
-    if (user && user.role !== 'Ambulance Personnel') {
+    if (user && !isAmbulancePersonnel) {
       navigate(getRoleDashboardPath(user.role), { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, isAmbulancePersonnel, navigate]);
 
   // Load my ambulance first
   const loadMyAmbulance = useCallback(async () => {
@@ -226,22 +229,30 @@ export default function EmergencyRequests() {
     }
   }, [myAmbulance]);
 
-  // Initial load
+  // Initial load - only for ambulance personnel
+  // CRITICAL: Wait for user and role verification before making API calls
   useEffect(() => {
+    if (!user) return; // Wait for user to load
+    if (!isAmbulancePersonnel) return; // Wrong role - will be redirected
+    
     loadMyAmbulance();
-  }, [loadMyAmbulance]);
+  }, [isAmbulancePersonnel, user, loadMyAmbulance]);
 
   useEffect(() => {
-    if (user?.role === 'Ambulance Personnel') {
-      loadRequests();
-      // Poll every 15 seconds as fallback
-      pollRef.current = setInterval(loadRequests, 15000);
-      return () => clearInterval(pollRef.current);
-    }
-  }, [loadRequests, user]);
+    if (!user) return; // Wait for user to load
+    if (!isAmbulancePersonnel) return; // Wrong role - will be redirected
+    
+    loadRequests();
+    // Poll every 15 seconds as fallback
+    pollRef.current = setInterval(loadRequests, 15000);
+    return () => clearInterval(pollRef.current);
+  }, [isAmbulancePersonnel, user, loadRequests]);
 
-  // Real-time: new emergency request
+  // Real-time: new emergency request - only for ambulance personnel
   useEffect(() => {
+    if (!user) return; // Wait for user to load
+    if (!isAmbulancePersonnel) return; // Wrong role - will be redirected
+    
     const handleNewRequest = (data) => {
       const req = data.request;
       setPendingRequests((prev) => {
@@ -273,9 +284,15 @@ export default function EmergencyRequests() {
       socketService.off('emergency:request:cancelled', handleCancelled);
       socketService.off('emergency:status:updated', handleStatusUpdate);
     };
-  }, [activeRequest, loadRequests]);
+  }, [isAmbulancePersonnel, user, activeRequest, loadRequests]);
 
   const handleAccept = async (requestId) => {
+    // CRITICAL: Double-check role before making API call
+    if (!user || !isAmbulancePersonnel) {
+      alert('Unauthorized action.');
+      return;
+    }
+    
     if (!myAmbulance) {
       alert('No ambulance registered for your account. Please register an ambulance first.');
       return;
@@ -292,6 +309,12 @@ export default function EmergencyRequests() {
   };
 
   const handleReject = async (requestId) => {
+    // CRITICAL: Double-check role before making API call
+    if (!user || !isAmbulancePersonnel) {
+      alert('Unauthorized action.');
+      return;
+    }
+    
     try {
       setRejecting(true);
       await emergencyRequestService.rejectRequest(requestId, 'Rejected by personnel');
@@ -304,6 +327,12 @@ export default function EmergencyRequests() {
   };
 
   const handleUpdateStatus = async (requestId, newStatus) => {
+    // CRITICAL: Double-check role before making API call
+    if (!user || !isAmbulancePersonnel) {
+      alert('Unauthorized action.');
+      return;
+    }
+    
     try {
       setUpdating(true);
       await emergencyRequestService.updateRequestStatus(requestId, newStatus);
