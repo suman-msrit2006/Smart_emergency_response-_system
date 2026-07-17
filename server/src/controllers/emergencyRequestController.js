@@ -185,7 +185,13 @@ export const cancelRequest = catchAsync(async (req, res) => {
  */
 export const getMyAmbulance = catchAsync(async (req, res) => {
   const Ambulance = (await import('../models/Ambulance.js')).default;
+  
+  console.log('[getMyAmbulance] Looking for ambulance with driver:', req.user._id);
+  console.log('[getMyAmbulance] User email:', req.user.email);
+  
   const ambulance = await Ambulance.findOne({ driver: req.user._id });
+  
+  console.log('[getMyAmbulance] Ambulance found:', ambulance ? ambulance.vehicleNumber : 'NONE');
 
   res.status(200).json({
     status: 'success',

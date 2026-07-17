@@ -196,18 +196,19 @@ export default function EmergencyRequests() {
   // Load my ambulance first
   const loadMyAmbulance = useCallback(async () => {
     try {
-      const data = await ambulanceService.getMyAmbulance();
-      setMyAmbulance(data);
+      const response = await emergencyRequestService.getMyAmbulance();
+      setMyAmbulance(response.data?.ambulance);
     } catch {
       // no ambulance registered yet
+      setMyAmbulance(null);
     }
   }, []);
 
   // Load pending + active requests
   const loadRequests = useCallback(async () => {
     try {
-      // Active request for this personnel
-      const activeRes = await emergencyRequestService.getActiveRequest();
+      // Active request for this personnel - USE CORRECT API
+      const activeRes = await emergencyRequestService.getActiveAssignment();
       const active = activeRes?.data?.request || null;
       setActiveRequest(active);
 
@@ -293,15 +294,31 @@ export default function EmergencyRequests() {
       return;
     }
     
-    if (!myAmbulance) {
-      alert('No ambulance registered for your account. Please register an ambulance first.');
-      return;
-    }
     try {
       setAccepting(true);
-      await emergencyRequestService.acceptRequest(requestId, myAmbulance._id);
+      
+      // Fetch ambulance fresh if not already loaded
+      let ambulanceId = myAmbulance?._id;
+      
+      if (!ambulanceId) {
+        console.log('[handleAccept] myAmbulance not loaded, fetching fresh...');
+        const freshData = await emergencyRequestService.getMyAmbulance();
+        ambulanceId = freshData?.data?.ambulance?._id;
+        
+        if (!ambulanceId) {
+          alert('No ambulance registered for your account. Please contact administrator.');
+          return;
+        }
+        
+        // Update state for future use
+        setMyAmbulance(freshData?.data?.ambulance);
+      }
+      
+      console.log('[handleAccept] Accepting request with ambulance:', ambulanceId);
+      await emergencyRequestService.acceptRequest(requestId, ambulanceId);
       await loadRequests();
     } catch (err) {
+      console.error('[handleAccept] Error:', err);
       alert(err?.message || 'Failed to accept request');
     } finally {
       setAccepting(false);
