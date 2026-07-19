@@ -46,6 +46,10 @@ export const canAccessRoute = (userRole, routePath) => {
     return userRole === 'Patient';
   }
 
+  if (routePath === '/patient/tracking') {
+    return userRole === 'Patient';
+  }
+
   // AMBULANCE PERSONNEL-ONLY ROUTES
   if (routePath === '/ambulance-dashboard') {
     return userRole === 'Ambulance Personnel';
@@ -56,6 +60,10 @@ export const canAccessRoute = (userRole, routePath) => {
   }
 
   if (routePath === '/feedback-management') {
+    return userRole === 'Ambulance Personnel';
+  }
+
+  if (routePath === '/ambulance/navigation') {
     return userRole === 'Ambulance Personnel';
   }
 

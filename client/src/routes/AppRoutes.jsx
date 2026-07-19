@@ -13,6 +13,8 @@ const Doctor = lazy(() => import("../pages/Doctor"));
 const Discharge = lazy(() => import("../pages/Discharge"));
 const Feedback = lazy(() => import("../pages/Feedback"));
 const EmergencyRequests = lazy(() => import("../pages/EmergencyRequests"));
+const PatientTracking = lazy(() => import("../pages/PatientTracking"));
+const AmbulanceNavigation = lazy(() => import("../pages/AmbulanceNavigation"));
 const Login = lazy(() => import("../pages/Login"));
 const Register = lazy(() => import("../pages/Register"));
 const Settings = lazy(() => import("../pages/Settings"));
@@ -112,6 +114,22 @@ function AppRoutes() {
             element={
               <ProtectedRoute>
                 <EmergencyRequests />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/patient/tracking" 
+            element={
+              <ProtectedRoute>
+                <PatientTracking />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/ambulance/navigation" 
+            element={
+              <ProtectedRoute>
+                <AmbulanceNavigation />
               </ProtectedRoute>
             } 
           />

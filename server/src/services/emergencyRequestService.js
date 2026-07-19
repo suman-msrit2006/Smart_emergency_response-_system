@@ -6,6 +6,37 @@ import { logger } from '../utils/logger.js';
 import { validateCoordinates, validateMaxDistance } from '../utils/validateCoordinates.js';
 
 /**
+ * Generate a random location within a specified radius from a center point
+ * @param {Number} centerLat - Center latitude
+ * @param {Number} centerLng - Center longitude
+ * @param {Number} radiusKm - Radius in kilometers (default: 1-5 km random)
+ * @returns {Object} - {latitude, longitude}
+ */
+const generateNearbyLocation = (centerLat, centerLng, radiusKm = null) => {
+  // If no radius specified, pick random between 1-5 km
+  const radius = radiusKm || (Math.random() * 4 + 1); // 1-5 km
+  
+  // Convert radius from kilometers to degrees (approximately)
+  // 1 degree latitude ≈ 111 km
+  const radiusInDegrees = radius / 111;
+  
+  // Generate random angle
+  const angle = Math.random() * 2 * Math.PI;
+  
+  // Generate random distance within radius (use square root for uniform distribution)
+  const distance = Math.sqrt(Math.random()) * radiusInDegrees;
+  
+  // Calculate new coordinates
+  const deltaLat = distance * Math.cos(angle);
+  const deltaLng = distance * Math.sin(angle) / Math.cos(centerLat * Math.PI / 180);
+  
+  return {
+    latitude: centerLat + deltaLat,
+    longitude: centerLng + deltaLng,
+  };
+};
+
+/**
  * Create a new emergency request
  * @param {Object} requestData - Emergency request data
  * @param {String} patientId - Patient user ID
@@ -207,6 +238,17 @@ export const acceptRequest = async (requestId, ambulanceId, personnelId) => {
   if (ambulance.status !== 'Available') {
     throw new AppError('Ambulance is not available', 400);
   }
+
+  // Generate realistic ambulance location within 1-5 km of patient
+  const patientLat = request.location.coordinates[1];
+  const patientLng = request.location.coordinates[0];
+  const ambulanceStartLocation = generateNearbyLocation(patientLat, patientLng);
+  
+  // Update ambulance location with generated coordinates
+  ambulance.location = {
+    type: 'Point',
+    coordinates: [ambulanceStartLocation.longitude, ambulanceStartLocation.latitude],
+  };
 
   // Update request
   request.status = 'ACCEPTED';

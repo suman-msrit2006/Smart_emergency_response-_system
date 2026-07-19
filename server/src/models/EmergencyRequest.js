@@ -141,6 +141,11 @@ emergencyRequestSchema.virtual('isActiveRequest').get(function () {
   );
 });
 
+// Virtual field to map assignedAmbulance to ambulance for frontend compatibility
+emergencyRequestSchema.virtual('ambulance').get(function () {
+  return this.assignedAmbulance;
+});
+
 // Generate unique request ID before saving
 emergencyRequestSchema.pre('save', async function (next) {
   if (this.isNew && !this.requestId) {

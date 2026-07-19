@@ -1,11 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWorkflow } from '../context/WorkflowContext';
+import { useAuth } from '../context/AuthContext';
 import { vitalService } from '../services/vitalService';
 
 export default function Discharge() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { patientInfo, setDischargeSummary, setWorkflowStep } = useWorkflow();
+
+  // Role verification - redirect immediately if wrong role
+  const isAmbulancePersonnel = user?.role === 'Ambulance Personnel';
+
+  // Redirect non-Ambulance Personnel to their dashboard BEFORE any logic executes
+  useEffect(() => {
+    if (user && !isAmbulancePersonnel) {
+      navigate('/patient-dashboard', { replace: true });
+    }
+  }, [user, isAmbulancePersonnel, navigate]);
 
   const [patientName, setPatientName] = useState(patientInfo.name || '');
   const [summaryGenerated, setSummaryGenerated] = useState(false);

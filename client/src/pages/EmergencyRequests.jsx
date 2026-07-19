@@ -103,10 +103,8 @@ function IncomingCard({ request, onAccept, onReject, accepting, rejecting }) {
 }
 
 /* ─── Active assignment card ─────────────────────────────────────────────── */
-function ActiveCard({ request, onUpdateStatus, updating }) {
+function ActiveCard({ request, onNavigate }) {
   const cfg = STATUS_CONFIG[request.status] || STATUS_CONFIG.ACCEPTED;
-  const nextStatus = NEXT_STATUS[request.status];
-  const nextLabel = NEXT_LABEL[nextStatus];
 
   return (
     <div className="bg-white border-2 border-teal-300 rounded-xl shadow-lg p-6">
@@ -141,28 +139,13 @@ function ActiveCard({ request, onUpdateStatus, updating }) {
         </div>
       </div>
 
-      {nextStatus && (
-        <button
-          onClick={() => onUpdateStatus(request._id, nextStatus)}
-          disabled={updating}
-          className="w-full py-3 bg-teal-600 text-white font-bold text-sm rounded-xl hover:bg-teal-700 transition disabled:opacity-60"
-        >
-          {updating ? (
-            <span className="flex items-center justify-center gap-2">
-              <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-              Updating...
-            </span>
-          ) : nextLabel}
-        </button>
-      )}
-
-      {request.status === 'COMPLETED' && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-          <div className="text-3xl mb-2">🎉</div>
-          <p className="font-bold text-green-700">Handover Complete!</p>
-          <p className="text-xs text-gray-500 mt-1">Patient successfully handed over to hospital</p>
-        </div>
-      )}
+      <button
+        onClick={onNavigate}
+        className="w-full py-3 bg-teal-600 text-white font-bold text-sm rounded-xl hover:bg-teal-700 transition flex items-center justify-center gap-2"
+      >
+        <span>🚑</span>
+        Move to Live Ambulance Tracking
+      </button>
     </div>
   );
 }
@@ -178,7 +161,6 @@ export default function EmergencyRequests() {
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
   const [rejecting, setRejecting] = useState(false);
-  const [updating, setUpdating] = useState(false);
   const [error, setError] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
   const pollRef = useRef(null);
@@ -317,6 +299,11 @@ export default function EmergencyRequests() {
       console.log('[handleAccept] Accepting request with ambulance:', ambulanceId);
       await emergencyRequestService.acceptRequest(requestId, ambulanceId);
       await loadRequests();
+      
+      // Navigate to ambulance navigation page after accepting
+      setTimeout(() => {
+        navigate('/ambulance/navigation');
+      }, 1500);
     } catch (err) {
       console.error('[handleAccept] Error:', err);
       alert(err?.message || 'Failed to accept request');
@@ -340,32 +327,6 @@ export default function EmergencyRequests() {
       alert(err?.message || 'Failed to reject request');
     } finally {
       setRejecting(false);
-    }
-  };
-
-  const handleUpdateStatus = async (requestId, newStatus) => {
-    // CRITICAL: Double-check role before making API call
-    if (!user || !isAmbulancePersonnel) {
-      alert('Unauthorized action.');
-      return;
-    }
-    
-    try {
-      setUpdating(true);
-      await emergencyRequestService.updateRequestStatus(requestId, newStatus);
-      setActiveRequest((prev) => prev ? { ...prev, status: newStatus } : prev);
-
-      // If completed, clear active and reload
-      if (newStatus === 'COMPLETED') {
-        setTimeout(() => {
-          setActiveRequest(null);
-          loadRequests();
-        }, 2000);
-      }
-    } catch (err) {
-      alert(err?.message || 'Failed to update status');
-    } finally {
-      setUpdating(false);
     }
   };
 
@@ -431,8 +392,7 @@ export default function EmergencyRequests() {
               {activeRequest ? (
                 <ActiveCard
                   request={activeRequest}
-                  onUpdateStatus={handleUpdateStatus}
-                  updating={updating}
+                  onNavigate={() => navigate('/ambulance/navigation')}
                 />
               ) : (
                 <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">

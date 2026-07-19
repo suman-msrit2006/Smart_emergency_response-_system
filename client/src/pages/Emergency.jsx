@@ -66,7 +66,7 @@ export default function Emergency() {
   const [searchStatus, setSearchStatus] = useState({ message: '', type: '' });
   const [userLoc, setUserLoc] = useState(null);
   const [ambulances, setAmbulances] = useState([]);
-  const [stats, setStats] = useState({ total: 0, available: 0, enroute: 0, fastest: null });
+  const [stats, setStats] = useState({ total: 0, available: 0, busy: 0, closest: null });
   const [mapCenter, setMapCenter] = useState([20.5937, 78.9629]);
   const [mapZoom, setMapZoom] = useState(5);
   const [emergencyRequestId, setEmergencyRequestId] = useState(null);
@@ -119,10 +119,10 @@ export default function Emergency() {
         location: data.request.ambulance.location
       });
 
-      // Navigate to hospital selection after 3 seconds
+      // Navigate to ambulance tracking after 3 seconds
       setTimeout(() => {
-        setWorkflowStep('hospital');
-        navigate('/hospital');
+        setWorkflowStep('patient-tracking');
+        navigate('/patient/tracking');
       }, 3000);
     };
 
@@ -293,6 +293,40 @@ export default function Emergency() {
     };
   }, []);
 
+  // Calculate statistics whenever ambulances or user location changes
+  useEffect(() => {
+    if (userLoc && ambulances.length > 0) {
+      // Normalize status to lowercase for consistent comparison
+      const normalizeStatus = (status) => status?.toLowerCase() || 'unknown';
+      
+      // Filter ambulances within 50km that have distance calculated
+      const nearby = ambulances.filter(amb => amb.distance && amb.distance <= 50);
+      
+      // Count available ambulances (status: available)
+      const availableAmbulances = nearby.filter(amb => 
+        normalizeStatus(amb.status) === 'available'
+      );
+      
+      // Count busy ambulances (status: busy, assigned, enroute, en_route, on_duty)
+      const busyStatuses = ['busy', 'assigned', 'enroute', 'en_route', 'on_duty'];
+      const busyAmbulances = nearby.filter(amb => 
+        busyStatuses.includes(normalizeStatus(amb.status))
+      );
+      
+      // Find closest available ambulance
+      const sortedAvailable = [...availableAmbulances].sort((a, b) => a.distance - b.distance);
+      const closestAmbulance = sortedAvailable.length > 0 ? sortedAvailable[0] : null;
+      
+      // Update stats
+      setStats({
+        total: nearby.length,
+        available: availableAmbulances.length,
+        busy: busyAmbulances.length,
+        closest: closestAmbulance,
+      });
+    }
+  }, [userLoc, ambulances]);
+
   // Update distances when user location changes
   useEffect(() => {
     if (userLoc && ambulances.length > 0) {
@@ -301,28 +335,16 @@ export default function Emergency() {
         distance: haversineDistance(userLoc.lat, userLoc.lng, amb.lat, amb.lng),
       }));
       
-      // Filter ambulances within 50km (not 5km)
-      const nearby = updated.filter(amb => amb.distance <= 50);
-      const available = nearby.filter(amb => amb.status === 'available').sort((a, b) => a.distance - b.distance);
-      const enroute = nearby.filter(amb => amb.status === 'enroute');
-      
-      setStats({
-        total: nearby.length,
-        available: available.length,
-        enroute: enroute.length,
-        fastest: available.length > 0 ? available[0] : null,
-      });
-      
-      // Only update ambulances if distances changed
+      // Only update if distances actually changed
       const hasDistanceChanges = updated.some((amb, idx) => 
-        ambulances[idx]?.distance !== amb.distance
+        !ambulances[idx]?.distance || ambulances[idx].distance !== amb.distance
       );
       
       if (hasDistanceChanges) {
         setAmbulances(updated);
       }
     }
-  }, [userLoc]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [userLoc]); // Only depend on userLoc to avoid infinite loop
 
   const handleSearch = async () => {
     if (!placeSearch.trim()) {
@@ -523,30 +545,57 @@ export default function Emergency() {
           </div>
         </div>
 
-        {/* STATS PANEL - Reduced padding and spacing */}
+        {/* STATS PANEL - Professional & Attractive Summary Cards */}
         {userLoc && (
-          <div className="max-w-5xl mx-auto mb-4">
-            <div className="rounded-xl p-4 text-white shadow-xl" style={{ background: 'linear-gradient(135deg, #00b894, #00cec9)' }}>
+          <div className="max-w-5xl mx-auto mb-6">
+            <div className="bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 rounded-2xl p-6 shadow-2xl">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center">
-                  <div className="text-3xl font-bold mb-1">{stats.total}</div>
-                  <div className="text-sm">Total Nearby (50km)</div>
+                {/* Nearby Ambulances */}
+                <div className="bg-white rounded-xl p-5 text-center transform hover:scale-105 transition-transform duration-200 shadow-lg">
+                  <div className="text-4xl mb-3">🚑</div>
+                  <div className="text-4xl font-black text-gray-800 mb-2">{stats.total}</div>
+                  <div className="text-sm font-bold text-gray-700 uppercase tracking-wide">Nearby</div>
+                  <div className="text-xs text-gray-500 mt-2">Within 50 km</div>
                 </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold mb-1" style={{ color: '#00ff88', textShadow: '0 0 10px #00ff88' }}>
+
+                {/* Available Ambulances */}
+                <div className="bg-white rounded-xl p-5 text-center transform hover:scale-105 transition-transform duration-200 shadow-lg">
+                  <div className="text-4xl mb-3">🟢</div>
+                  <div className="text-4xl font-black text-green-600 mb-2" style={{ textShadow: '0 2px 4px rgba(34, 197, 94, 0.3)' }}>
                     {stats.available}
                   </div>
-                  <div className="text-sm"><strong>AVAILABLE</strong></div>
+                  <div className="text-sm font-bold text-gray-700 uppercase tracking-wide">Available</div>
+                  <div className="text-xs text-green-600 mt-2 font-semibold">Ready to Deploy</div>
                 </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold mb-1 text-yellow-300">{stats.enroute}</div>
-                  <div className="text-sm">En Route</div>
+
+                {/* Busy Ambulances */}
+                <div className="bg-white rounded-xl p-5 text-center transform hover:scale-105 transition-transform duration-200 shadow-lg">
+                  <div className="text-4xl mb-3">🔴</div>
+                  <div className="text-4xl font-black text-red-600 mb-2">{stats.busy}</div>
+                  <div className="text-sm font-bold text-gray-700 uppercase tracking-wide">Busy</div>
+                  <div className="text-xs text-red-600 mt-2 font-semibold">On Emergency</div>
                 </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold mb-1 animate-pulse">
-                    {stats.fastest ? stats.fastest.id : '-'}
-                  </div>
-                  <div className="text-sm">{stats.fastest ? `${stats.fastest.distance.toFixed(1)} km` : '-'}</div>
+
+                {/* Closest Ambulance */}
+                <div className="bg-white rounded-xl p-5 text-center transform hover:scale-105 transition-transform duration-200 shadow-lg">
+                  <div className="text-4xl mb-3">⚡</div>
+                  {stats.closest ? (
+                    <>
+                      <div className="text-4xl font-black text-yellow-600 mb-2 animate-pulse">
+                        {stats.closest.distance.toFixed(1)} km
+                      </div>
+                      <div className="text-sm font-bold text-gray-700 uppercase tracking-wide">Closest</div>
+                      <div className="text-xs text-yellow-600 mt-2 font-semibold">
+                        ~{Math.ceil(stats.closest.distance * 4)} min away
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-4xl font-black text-gray-400 mb-2">—</div>
+                      <div className="text-sm font-bold text-gray-700 uppercase tracking-wide">Closest</div>
+                      <div className="text-xs text-gray-500 mt-2">Not Available</div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -724,16 +773,19 @@ export default function Emergency() {
         {requestStatus === 'pending' && (
           <div className="max-w-2xl mx-auto bg-white bg-opacity-95 rounded-xl p-6 shadow-lg">
             <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2 text-center">Request Sent to {selectedAmbulanceId}</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-2 text-center">
+              Request Sent to {ambulances.find(a => a.id === selectedAmbulanceId)?.vehicleNumber || 'Ambulance'}
+            </h2>
             <p className="text-base text-gray-600 mb-3 text-center">
               Waiting for ambulance personnel to accept your request...
             </p>
             <div className="bg-blue-50 p-3 rounded-lg">
-              <p className="text-sm text-blue-800 text-center">
-                <strong>Status:</strong> Pending Response<br />
-                <strong>Ambulance:</strong> {selectedAmbulanceId}<br />
-                <strong>Distance:</strong> {ambulances.find(a => a.id === selectedAmbulanceId)?.distance.toFixed(1)} km
-              </p>
+              <div className="text-sm text-blue-800 text-center space-y-1">
+                <p><strong>Status:</strong> Pending Response</p>
+                <p><strong>Ambulance:</strong> {ambulances.find(a => a.id === selectedAmbulanceId)?.vehicleNumber || selectedAmbulanceId}</p>
+                <p><strong>Type:</strong> {ambulances.find(a => a.id === selectedAmbulanceId)?.type || 'Advanced Life Support'}</p>
+                <p><strong>Distance:</strong> {ambulances.find(a => a.id === selectedAmbulanceId)?.distance?.toFixed(1) || '—'} km</p>
+              </div>
             </div>
           </div>
         )}

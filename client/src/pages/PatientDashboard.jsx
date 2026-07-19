@@ -89,7 +89,7 @@ function PatientDashboard() {
 
             {/* Live Ambulance Tracking Card */}
             <Link 
-              to="/emergency"
+              to="/patient/tracking"
               className="group bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 p-6 flex flex-col"
             >
               <div className="flex justify-center mb-4">
