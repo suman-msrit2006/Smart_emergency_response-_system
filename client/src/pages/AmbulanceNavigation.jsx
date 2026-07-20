@@ -45,7 +45,7 @@ function MapUpdater({ center, zoom }) {
 
 // Status configuration and transitions
 const STATUS_CONFIG = {
-  ACCEPTED: { label: 'Request Accepted', color: 'bg-blue-100 text-blue-800', icon: '✅', next: 'EN_ROUTE' },
+  ACCEPTED: { label: 'Request Accepted', color: 'bg-blue-100 text-blue-800', icon: '✅', next: 'PATIENT_PICKED' },
   EN_ROUTE: { label: 'En Route to Patient', color: 'bg-indigo-100 text-indigo-800', icon: '🚑', next: 'ARRIVED' },
   ARRIVED: { label: 'Arrived at Patient', color: 'bg-green-100 text-green-800', icon: '📍', next: 'PATIENT_PICKED' },
   PATIENT_PICKED: { label: 'Patient Picked Up', color: 'bg-purple-100 text-purple-800', icon: '🏥', next: 'HOSPITAL_REACHED' },
@@ -54,9 +54,9 @@ const STATUS_CONFIG = {
 };
 
 const STATUS_ACTIONS = {
+  PATIENT_PICKED: '🧑‍⚕️ Patient Picked Up',
   EN_ROUTE: '🚑 Start Navigation (En Route)',
   ARRIVED: '📍 Mark Arrived at Patient',
-  PATIENT_PICKED: '🧑‍⚕️ Patient Picked Up',
   HOSPITAL_REACHED: '🏥 Reached Hospital',
   COMPLETED: '✅ Complete Handover',
 };
@@ -254,6 +254,13 @@ export default function AmbulanceNavigation() {
       
       setActiveAssignment(response.data?.request);
       toast.success(`Status updated to ${nextStatus.replace(/_/g, ' ')}`);
+
+      // Navigate to hospital page when patient is picked up
+      if (nextStatus === 'PATIENT_PICKED') {
+        setTimeout(() => {
+          navigate('/hospital');
+        }, 1500);
+      }
 
       // If completed, redirect to dashboard after 2 seconds
       if (nextStatus === 'COMPLETED') {
@@ -469,16 +476,13 @@ export default function AmbulanceNavigation() {
               </div>
             </div>
 
-            {/* Card 4: Navigation Action */}
-            {nextStatus && (
-              <button
-                onClick={handleUpdateStatus}
-                disabled={updatingStatus}
-                className="w-full px-4 py-3 bg-teal-600 text-white text-sm font-bold rounded-lg hover:bg-teal-700 transition disabled:opacity-50 shadow-md"
-              >
-                {updatingStatus ? 'Updating...' : actionLabel}
-              </button>
-            )}
+            {/* Card 4: Patient Picked Up Button */}
+            <button
+              onClick={() => navigate('/hospital')}
+              className="w-full px-4 py-3 bg-teal-600 text-white text-sm font-bold rounded-lg hover:bg-teal-700 transition shadow-md"
+            >
+              🧑‍⚕️ Patient Picked Up
+            </button>
 
             {/* Card 5: Back Button */}
             <button

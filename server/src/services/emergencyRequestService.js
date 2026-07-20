@@ -345,7 +345,7 @@ export const updateRequestStatus = async (requestId, newStatus, personnelId) => 
   // Validate status transition
   const validTransitions = {
     PENDING: ['ACCEPTED', 'REJECTED', 'CANCELLED'],
-    ACCEPTED: ['EN_ROUTE', 'CANCELLED'],
+    ACCEPTED: ['EN_ROUTE', 'PATIENT_PICKED', 'CANCELLED'],
     EN_ROUTE: ['ARRIVED', 'CANCELLED'],
     ARRIVED: ['PATIENT_PICKED', 'CANCELLED'],
     PATIENT_PICKED: ['HOSPITAL_REACHED', 'CANCELLED'],

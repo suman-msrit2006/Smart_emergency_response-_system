@@ -1,8 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { useWorkflow } from '../context/WorkflowContext';
 import { hospitalService } from '../services/hospitalService';
 import { emergencyService } from '../services/emergencyService';
@@ -11,38 +8,6 @@ import { useToast } from '../components/ToastContainer';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
-
-// Fix Leaflet icon issue
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
-
-// Custom Icons
-const createIcon = (html, size = [60, 75]) => L.divIcon({
-  html,
-  className: '',
-  iconSize: size,
-  iconAnchor: [size[0] / 2, size[1]],
-});
-
-const icons = {
-  patient: createIcon('🚨<div style="background:#e74c3c;color:white;font-weight:bold;padding:4px 10px;border-radius:12px;font-size:12px;margin-top:5px;text-align:center;">PATIENT</div>', [55, 70]),
-  hospital: createIcon('🏥<div style="background:#27ae60;color:white;font-weight:bold;padding:4px 10px;border-radius:12px;font-size:12px;margin-top:5px;text-align:center;">DOCTORS</div>', [60, 75]),
-  selected: createIcon('⭐<div style="background:#f39c12;color:white;font-weight:bold;padding:4px 12px;border-radius:12px;font-size:12px;margin-top:5px;text-align:center;">SELECTED</div>', [65, 80]),
-};
-
-function MapUpdater({ center, zoom }) {
-  const map = useMap();
-  useEffect(() => {
-    if (center) {
-      map.setView(center, zoom || 12);
-    }
-  }, [center, zoom, map]);
-  return null;
-}
 
 export default function Hospital() {
   const navigate = useNavigate();
@@ -389,57 +354,6 @@ export default function Hospital() {
             </div>
           )}
 
-          {/* MAP */}
-          <div className="max-w-5xl mx-auto mb-8" style={{ height: '500px', borderRadius: '15px', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)' }}>
-            <MapContainer center={mapCenter} zoom={mapZoom} style={{ height: '100%', width: '100%' }}>
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-              <MapUpdater center={mapCenter} zoom={mapZoom} />
-
-              {patientMarker && (
-                <Marker position={[patientMarker.lat, patientMarker.lng]} icon={icons.patient}>
-                  <Popup>🚨 Your Location</Popup>
-                </Marker>
-              )}
-
-              {hospitalsToDisplay.map(hosp => (
-                <Marker
-                  key={hosp.id}
-                  position={[hosp.lat, hosp.lng]}
-                  icon={selectedId === hosp.id ? icons.selected : icons.hospital}
-                  eventHandlers={{
-                    click: () => selectHospital(hosp.id),
-                  }}
-                >
-                  <Popup>
-                    🏥 {hosp.name}<br />
-                    {hosp.distance && `Distance: ${hosp.distance.toFixed(1)} km`}<br />
-                    Doctors: {hosp.doctors}
-                  </Popup>
-                </Marker>
-              ))}
-
-              {/* Show all hospitals if no search performed */}
-              {hospitalsToDisplay.length === 0 && hospitals.map(hosp => (
-                <Marker
-                  key={hosp.id}
-                  position={[hosp.lat, hosp.lng]}
-                  icon={selectedId === hosp.id ? icons.selected : icons.hospital}
-                  eventHandlers={{
-                    click: () => selectHospital(hosp.id),
-                  }}
-                >
-                  <Popup>
-                    🏥 {hosp.name}<br />
-                    Doctors: {hosp.doctors}
-                  </Popup>
-                </Marker>
-              ))}
-            </MapContainer>
-          </div>
-
           {/* ACCEPT BUTTON */}
           <div className="text-center">
             <button
@@ -465,202 +379,165 @@ export default function Hospital() {
       <div className="container mx-auto px-4">
         {/* HEADER */}
         <h1 className="text-4xl font-bold text-white text-center mb-2">🏥 Bangalore Emergency Hospitals</h1>
-        <p className="text-white text-center text-xl mb-8">Choose hospital directly OR enter location → Select ONE → Accept</p>
+        <p className="text-white text-center text-xl mb-8">Choose hospital → Select ONE → Accept</p>
 
-        {/* CONTROL PANEL */}
-        <div className="max-w-5xl mx-auto bg-white bg-opacity-95 rounded-3xl p-8 shadow-2xl mb-8">
-          {loading ? (
-            <LoadingSpinner size="lg" message="Loading hospitals..." />
-          ) : error ? (
-            <ErrorState 
-              title="Error Loading Hospitals"
-              message={error}
-              onRetry={fetchHospitals}
-            />
-          ) : hospitals.length === 0 ? (
-            <EmptyState
-              icon="🏥"
-              title="No Hospitals Available"
-              message="No hospitals found in the system. Please try again later."
-              action={
-                <button
-                  onClick={fetchHospitals}
-                  className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition"
-                >
-                  Retry
-                </button>
-              }
-            />
-          ) : (
-            <>
-              <div className="grid md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className="block text-lg font-bold text-gray-800 mb-3">🏥 Choose Hospital Directly</label>
-              <select
-                value={hospitalSelect}
-                onChange={(e) => setHospitalSelect(e.target.value)}
-                className="w-full px-4 py-3 text-lg border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                <option value="">-- Select Any Hospital --</option>
-                {hospitals.map(hosp => (
-                  <option key={hosp.id} value={hosp.id}>
-                    {hosp.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-lg font-bold text-gray-800 mb-3">📍 OR Patient Location</label>
-              <input
-                type="text"
-                value={patientLocation}
-                onChange={(e) => setPatientLocation(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearchHospitals()}
-                className="w-full px-4 py-3 text-lg border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Koramangala, Whitefield, etc."
+        {/* MAIN GRID LAYOUT - SIDE BY SIDE */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          
+          {/* LEFT: CONTROL PANEL */}
+          <div className="bg-white bg-opacity-95 rounded-3xl p-8 shadow-2xl h-fit sticky top-8">
+            {loading ? (
+              <LoadingSpinner size="lg" message="Loading hospitals..." />
+            ) : error ? (
+              <ErrorState 
+                title="Error Loading Hospitals"
+                message={error}
+                onRetry={fetchHospitals}
               />
-            </div>
-          </div>
-
-          <div className="flex gap-4 justify-center flex-wrap">
-            <button
-              onClick={handleDirectSelect}
-              className="px-8 py-4 bg-green-500 text-white text-lg font-bold rounded-lg hover:bg-green-600 transition"
-            >
-              ✅ SELECT CHOSEN HOSPITAL
-            </button>
-            <button
-              onClick={handleSearchHospitals}
-              className="px-8 py-4 bg-red-500 text-white text-lg font-bold rounded-lg hover:bg-red-600 transition"
-            >
-              🚨 FIND NEARBY HOSPITALS
-            </button>
-          </div>
-
-          {statusMsg.text && (
-            <div
-              className={`mt-6 p-4 rounded-lg font-bold text-center ${
-                statusMsg.type === 'success' ? 'bg-green-100 text-green-800' :
-                statusMsg.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-                statusMsg.type === 'info' ? 'bg-blue-100 text-blue-800' :
-                'bg-red-100 text-red-800'
-              }`}
-            >
-              {statusMsg.text}
-            </div>
-          )}
-            </>
-          )}
-        </div>
-
-        {/* STATS PANEL */}
-        {stats.total > 0 && (
-          <div className="max-w-5xl mx-auto rounded-2xl p-8 mb-8 text-white shadow-xl" style={{ background: 'linear-gradient(135deg, #f39c12 0%, #e67e22 100%)' }}>
-            <div className="grid grid-cols-3 gap-6 text-center">
-              <div>
-                <div className="text-4xl font-bold mb-2">{stats.total}</div>
-                <span>Nearby Hospitals</span>
-              </div>
-              <div>
-                <div className="text-4xl font-bold mb-2">{stats.doctors}</div>
-                <span>Available Doctors</span>
-              </div>
-              <div>
-                <div className="text-4xl font-bold mb-2">{selectedId ? hospitals.find(h => h.id === selectedId)?.name : 'None'}</div>
-                <span>✅ Selected</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* MAP */}
-        <div className="max-w-5xl mx-auto mb-8" style={{ height: '600px', borderRadius: '15px', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)' }}>
-          <MapContainer center={mapCenter} zoom={mapZoom} style={{ height: '100%', width: '100%' }}>
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <MapUpdater center={mapCenter} zoom={mapZoom} />
-
-            {patientMarker && (
-              <Marker position={[patientMarker.lat, patientMarker.lng]} icon={icons.patient}>
-                <Popup>🚨 Patient Location</Popup>
-              </Marker>
-            )}
-
-            {hospitalsToDisplay.map(hosp => (
-              <Marker
-                key={hosp.id}
-                position={[hosp.lat, hosp.lng]}
-                icon={selectedId === hosp.id ? icons.selected : icons.hospital}
-                eventHandlers={{
-                  click: () => selectHospital(hosp.id),
-                }}
-              >
-                <Popup>
-                  🏥 {hosp.name}<br />
-                  {hosp.distance && `Distance: ${hosp.distance.toFixed(1)} km`}<br />
-                  Doctors: {hosp.doctors}
-                </Popup>
-              </Marker>
-            ))}
-
-            {/* Show all hospitals if no search performed */}
-            {hospitalsToDisplay.length === 0 && hospitals.map(hosp => (
-              <Marker
-                key={hosp.id}
-                position={[hosp.lat, hosp.lng]}
-                icon={selectedId === hosp.id ? icons.selected : icons.hospital}
-                eventHandlers={{
-                  click: () => selectHospital(hosp.id),
-                }}
-              >
-                <Popup>
-                  🏥 {hosp.name}<br />
-                  Doctors: {hosp.doctors}
-                </Popup>
-              </Marker>
-            ))}
-          </MapContainer>
-        </div>
-
-        {/* HOSPITAL LIST */}
-        <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl p-8 mb-8">
-          <h4 className="text-2xl font-bold text-red-600 text-center mb-6">👇 Click ONE Hospital to Select 👇</h4>
-          <div className="space-y-4">
-            {(hospitalsToDisplay.length > 0 ? hospitalsToDisplay : hospitals).map((hosp, index) => (
-              <div
-                key={hosp.id}
-                onClick={() => selectHospital(hosp.id)}
-                className={`p-6 rounded-xl cursor-pointer transition-all ${
-                  selectedId === hosp.id
-                    ? 'bg-gradient-to-r from-green-500 to-green-600 text-white border-l-8 border-yellow-400 shadow-2xl'
-                    : index === 0 && hospitalsToDisplay.length > 0
-                    ? 'bg-gradient-to-r from-yellow-200 to-yellow-300 border-l-8 border-red-500 shadow-lg hover:shadow-xl'
-                    : 'bg-gradient-to-r from-red-500 to-red-600 text-white border-l-8 border-red-700 hover:shadow-xl'
-                } animate-pulse-slow`}
-              >
-                <div className="flex justify-content-between items-center">
-                  <div>
-                    <h5 className="text-xl font-bold mb-2">{hosp.name}</h5>
-                    {hosp.distance && (
-                      <div className="text-2xl font-bold mb-2">{hosp.distance.toFixed(1)} km away</div>
-                    )}
-                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${
-                      selectedId === hosp.id ? 'bg-white text-green-600' : 'bg-white bg-opacity-30'
-                    }`}>
-                      {hosp.doctors} Doctors
-                    </span>
-                  </div>
-                  <button 
-                    onClick={() => alert(`Calling ${hosp.name}...`)}
-                    className="px-6 py-2 bg-white bg-opacity-90 text-gray-800 rounded-lg hover:bg-opacity-100 transition"
+            ) : hospitals.length === 0 ? (
+              <EmptyState
+                icon="🏥"
+                title="No Hospitals Available"
+                message="No hospitals found in the system. Please try again later."
+                action={
+                  <button
+                    onClick={fetchHospitals}
+                    className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition"
                   >
-                    📞 Call
+                    Retry
+                  </button>
+                }
+              />
+            ) : (
+              <>
+                <h3 className="text-2xl font-bold text-gray-800 mb-6 text-center">🔍 Find Hospital</h3>
+                
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-lg font-bold text-gray-800 mb-3">🏥 Choose Hospital Directly</label>
+                    <select
+                      value={hospitalSelect}
+                      onChange={(e) => setHospitalSelect(e.target.value)}
+                      className="w-full px-4 py-3 text-lg border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="">-- Select Any Hospital --</option>
+                      {hospitals.map(hosp => (
+                        <option key={hosp.id} value={hosp.id}>
+                          {hosp.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div className="text-center text-gray-500 font-bold">OR</div>
+                  
+                  <div>
+                    <label className="block text-lg font-bold text-gray-800 mb-3">📍 Patient Location</label>
+                    <input
+                      type="text"
+                      value={patientLocation}
+                      onChange={(e) => setPatientLocation(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSearchHospitals()}
+                      className="w-full px-4 py-3 text-lg border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="Koramangala, Whitefield, etc."
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 mt-6">
+                  <button
+                    onClick={handleDirectSelect}
+                    className="w-full px-6 py-4 bg-green-500 text-white text-lg font-bold rounded-lg hover:bg-green-600 transition shadow-lg"
+                  >
+                    ✅ SELECT CHOSEN HOSPITAL
+                  </button>
+                  <button
+                    onClick={handleSearchHospitals}
+                    className="w-full px-6 py-4 bg-red-500 text-white text-lg font-bold rounded-lg hover:bg-red-600 transition shadow-lg"
+                  >
+                    🚨 FIND NEARBY HOSPITALS
                   </button>
                 </div>
-              </div>
-            ))}
+
+                {statusMsg.text && (
+                  <div
+                    className={`mt-6 p-4 rounded-lg font-bold text-center ${
+                      statusMsg.type === 'success' ? 'bg-green-100 text-green-800' :
+                      statusMsg.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                      statusMsg.type === 'info' ? 'bg-blue-100 text-blue-800' :
+                      'bg-red-100 text-red-800'
+                    }`}
+                  >
+                    {statusMsg.text}
+                  </div>
+                )}
+
+                {/* STATS PANEL */}
+                {stats.total > 0 && (
+                  <div className="mt-6 rounded-xl p-6 text-white shadow-lg" style={{ background: 'linear-gradient(135deg, #f39c12 0%, #e67e22 100%)' }}>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-lg">Nearby Hospitals</span>
+                        <span className="text-3xl font-bold">{stats.total}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-lg">Available Doctors</span>
+                        <span className="text-3xl font-bold">{stats.doctors}</span>
+                      </div>
+                      <div className="border-t border-white border-opacity-30 pt-3">
+                        <span className="text-sm opacity-80">Selected Hospital</span>
+                        <div className="text-lg font-bold mt-1">
+                          {selectedId ? hospitals.find(h => h.id === selectedId)?.name : 'None'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* RIGHT: HOSPITAL LIST */}
+          <div className="bg-white rounded-3xl shadow-2xl p-8">
+            <h4 className="text-2xl font-bold text-red-600 text-center mb-6">👇 Click ONE Hospital to Select 👇</h4>
+            <div className="space-y-4 max-h-[700px] overflow-y-auto pr-2">
+              {(hospitalsToDisplay.length > 0 ? hospitalsToDisplay : hospitals).map((hosp, index) => (
+                <div
+                  key={hosp.id}
+                  onClick={() => selectHospital(hosp.id)}
+                  className={`p-6 rounded-xl cursor-pointer transition-all ${
+                    selectedId === hosp.id
+                      ? 'bg-gradient-to-r from-green-500 to-green-600 text-white border-l-8 border-yellow-400 shadow-2xl scale-105'
+                      : index === 0 && hospitalsToDisplay.length > 0
+                      ? 'bg-gradient-to-r from-yellow-200 to-yellow-300 border-l-8 border-red-500 shadow-lg hover:shadow-xl'
+                      : 'bg-gradient-to-r from-red-500 to-red-600 text-white border-l-8 border-red-700 hover:shadow-xl hover:scale-102'
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div className="flex-1">
+                      <h5 className="text-xl font-bold mb-2">{hosp.name}</h5>
+                      {hosp.distance && (
+                        <div className="text-2xl font-bold mb-2">📍 {hosp.distance.toFixed(1)} km away</div>
+                      )}
+                      <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${
+                        selectedId === hosp.id ? 'bg-white text-green-600' : 'bg-white bg-opacity-30'
+                      }`}>
+                        👨‍⚕️ {hosp.doctors} Doctors
+                      </span>
+                    </div>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        alert(`Calling ${hosp.name}...`);
+                      }}
+                      className="px-6 py-3 bg-white text-gray-800 rounded-lg hover:bg-gray-100 transition font-bold shadow-md"
+                    >
+                      📞 Call
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -668,9 +545,9 @@ export default function Hospital() {
         <div className="text-center">
           <button
             onClick={handleAccept}
-            className={`px-12 py-4 text-xl font-bold rounded-full transition ${
+            className={`px-12 py-5 text-2xl font-bold rounded-full transition shadow-2xl ${
               selectedId
-                ? 'bg-green-500 text-white hover:bg-green-600 animate-bounce cursor-pointer'
+                ? 'bg-green-500 text-white hover:bg-green-600 hover:scale-110 cursor-pointer'
                 : 'bg-gray-400 text-gray-200 cursor-not-allowed'
             }`}
             disabled={!selectedId}
