@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useWorkflow } from '../context/WorkflowContext';
 import { hospitalService } from '../services/hospitalService';
 import { emergencyService } from '../services/emergencyService';
+import emergencyRequestService from '../services/emergencyRequestService';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ToastContainer';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -19,8 +20,6 @@ export default function Hospital() {
   const isAmbulancePersonnel = user?.role === 'Ambulance Personnel';
   const isPatient = user?.role === 'Patient' || !isAmbulancePersonnel;
   
-  const [hospitalSelect, setHospitalSelect] = useState('');
-  const [patientLocation, setPatientLocation] = useState('');
   const [statusMsg, setStatusMsg] = useState({ text: '', type: '' });
   const [patientMarker, setPatientMarker] = useState(null);
   const [nearbyHospitals, setNearbyHospitals] = useState([]);
@@ -31,6 +30,12 @@ export default function Hospital() {
   const [hospitals, setHospitals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // NEW: Emergency request data
+  const [emergencyRequest, setEmergencyRequest] = useState(null);
+  const [patientLocationInfo, setPatientLocationInfo] = useState(null);
+  const [loadingLocation, setLoadingLocation] = useState(true);
+  const [searchPerformed, setSearchPerformed] = useState(false); // NEW: Track if search was performed
 
   // Fetch all hospitals from API
   const fetchHospitals = async () => {
@@ -76,8 +81,49 @@ export default function Hospital() {
 
   useEffect(() => {
     fetchHospitals();
+    fetchEmergencyRequest();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // NEW: Fetch active emergency request to get patient location
+  const fetchEmergencyRequest = async () => {
+    setLoadingLocation(true);
+    try {
+      const response = await emergencyRequestService.getActiveAssignment();
+      
+      if (response.data && response.data.request) {
+        const request = response.data.request;
+        setEmergencyRequest(request);
+        
+        // Extract patient location
+        if (request.location?.coordinates) {
+          const lat = request.location.coordinates[1];
+          const lng = request.location.coordinates[0];
+          const address = request.location.address || 'Location not specified';
+          
+          setPatientLocationInfo({
+            lat,
+            lng,
+            address,
+          });
+          
+          setPatientMarker({ lat, lng });
+          setMapCenter([lat, lng]);
+          
+          toast.success('Patient location retrieved from emergency request');
+        } else {
+          toast.warning('Patient location not available in emergency request');
+        }
+      } else {
+        toast.info('No active emergency assignment found');
+      }
+    } catch (error) {
+      console.error('Error fetching emergency request:', error);
+      toast.warning('Could not retrieve patient location');
+    } finally {
+      setLoadingLocation(false);
+    }
+  };
 
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
     const R = 6371;
@@ -120,19 +166,11 @@ export default function Hospital() {
     toast.success(`${hospital.name} selected!`);
   };
 
-  const handleDirectSelect = () => {
-    if (!hospitalSelect) {
-      setStatusMsg({ text: 'Please select a hospital from dropdown', type: 'warning' });
-      toast.warning('Please select a hospital from dropdown');
-      return;
-    }
-    selectHospital(hospitalSelect);
-  };
-
   const handleSearchHospitals = async () => {
-    if (!patientLocation.trim()) {
-      setStatusMsg({ text: 'Please enter patient location.', type: 'warning' });
-      toast.warning('Please enter patient location');
+    // NEW: Use stored patient location instead of manual input
+    if (!patientLocationInfo) {
+      setStatusMsg({ text: 'Patient location not available. Please accept an emergency request first.', type: 'warning' });
+      toast.warning('Patient location not available');
       return;
     }
 
@@ -140,36 +178,14 @@ export default function Hospital() {
     toast.info('Finding nearby hospitals...');
 
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-          patientLocation + ', Bangalore, India'
-        )}&limit=1&countrycodes=in&viewbox=77.4,12.8,77.8,13.2&bounded=1`
-      );
-      const data = await res.json();
-
-      if (!data[0]) {
-        setStatusMsg({
-          text: "Location not found. Try 'Koramangala' or 'Whitefield'.",
-          type: 'danger',
-        });
-        toast.error("Location not found. Try 'Koramangala' or 'Whitefield'");
-        return;
-      }
-
-      const lat = parseFloat(data[0].lat);
-      const lng = parseFloat(data[0].lon);
-
-      if (lat < 12.8 || lat > 13.2 || lng < 77.4 || lng > 77.8) {
-        setStatusMsg({ text: 'Please enter a Bangalore location.', type: 'danger' });
-        toast.error('Please enter a Bangalore location');
-        return;
-      }
+      const lat = patientLocationInfo.lat;
+      const lng = patientLocationInfo.lng;
 
       setPatientMarker({ lat, lng });
       setMapCenter([lat, lng]);
       setMapZoom(12);
 
-      // Calculate distances
+      // Calculate distances (existing logic)
       const hospitalsWithDistance = hospitals.map(h => ({
         ...h,
         distance: calculateDistance(lat, lng, h.lat, h.lng),
@@ -184,6 +200,8 @@ export default function Hospital() {
         total: nearby.length,
         doctors: nearby.reduce((sum, h) => sum + h.doctors, 0),
       });
+
+      setSearchPerformed(true); // NEW: Mark search as performed
 
       setStatusMsg({
         text: `${nearby.length} hospitals found. Click ONE to select.`,
@@ -281,61 +299,54 @@ export default function Hospital() {
                   </div>
                 ) : (
                   <>
-                    {/* Hospital Dropdown */}
+                    {/* NEW: Patient Location Display (Read-Only) */}
                     <div className="mb-4">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Select Hospital Directly
+                        Patient Location
                       </label>
-                      <select
-                        value={hospitalSelect}
-                        onChange={(e) => setHospitalSelect(e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 transition"
-                      >
-                        <option value="">Choose a hospital...</option>
-                        {hospitals.map(hosp => (
-                          <option key={hosp.id} value={hosp.id}>
-                            {hosp.name}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={handleDirectSelect}
-                        disabled={!hospitalSelect}
-                        className={`mt-3 w-full py-3 rounded-lg font-semibold transition-all ${
-                          hospitalSelect
-                            ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg'
-                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                        }`}
-                      >
-                        ✓ Select This Hospital
-                      </button>
-                    </div>
-
-                    {/* OR Divider */}
-                    <div className="flex items-center my-6">
-                      <div className="flex-1 border-t border-gray-300"></div>
-                      <span className="px-4 text-sm font-medium text-gray-500">OR</span>
-                      <div className="flex-1 border-t border-gray-300"></div>
-                    </div>
-
-                    {/* Location Search */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Search by Patient Location
-                      </label>
-                      <input
-                        type="text"
-                        value={patientLocation}
-                        onChange={(e) => setPatientLocation(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleSearchHospitals()}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 transition"
-                        placeholder="e.g., Koramangala, Whitefield..."
-                      />
+                      
+                      {loadingLocation ? (
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                          <LoadingSpinner size="sm" message="Loading location..." />
+                        </div>
+                      ) : patientLocationInfo ? (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                          <div className="flex items-start">
+                            <span className="text-2xl mr-3">📍</span>
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-blue-900 mb-1">
+                                Current Patient Location
+                              </p>
+                              <p className="text-sm text-blue-700">
+                                {patientLocationInfo.address}
+                              </p>
+                              <p className="text-xs text-blue-600 mt-2">
+                                ✓ Location automatically retrieved from emergency request
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                          <div className="flex items-start">
+                            <span className="text-2xl mr-3">⚠️</span>
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-yellow-900 mb-1">
+                                No Patient Location Available
+                              </p>
+                              <p className="text-xs text-yellow-700">
+                                Please accept an emergency request first to get patient location.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
                       <button
                         onClick={handleSearchHospitals}
-                        disabled={!patientLocation.trim()}
+                        disabled={!patientLocationInfo}
                         className={`mt-3 w-full py-3 rounded-lg font-semibold transition-all ${
-                          patientLocation.trim()
+                          patientLocationInfo
                             ? 'bg-orange-500 text-white hover:bg-orange-600 shadow-md hover:shadow-lg'
                             : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                         }`}
@@ -409,11 +420,24 @@ export default function Hospital() {
                   message="No hospitals found in the system."
                 />
               </div>
+            ) : !searchPerformed ? (
+              <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+                <div className="text-6xl mb-4">🔍</div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">
+                  Ready to Find Hospitals
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  Click "Find Nearby Hospitals" to see available hospitals near the patient location
+                </p>
+                <div className="inline-block px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm">
+                  Patient location is ready
+                </div>
+              </div>
             ) : (
               <>
                 {/* Hospital Cards */}
                 <div className="space-y-4 mb-6 max-h-[600px] overflow-y-auto pr-2">
-                  {(hospitalsToDisplay.length > 0 ? hospitalsToDisplay : hospitals).map((hosp, index) => {
+                  {(hospitalsToDisplay.length > 0 ? hospitalsToDisplay : []).map((hosp, index) => {
                     const isSelected = selectedId === hosp.id;
                     const isNearest = index === 0 && hospitalsToDisplay.length > 0;
                     
@@ -465,17 +489,15 @@ export default function Hospital() {
                           </button>
                         </div>
 
-                        {/* Details Grid */}
-                        <div className="grid grid-cols-3 gap-4 pt-3 border-t border-gray-100">
-                          {hosp.distance && (
-                            <div>
-                              <p className="text-xs text-gray-500 mb-1">Distance</p>
-                              <p className="text-sm font-bold text-gray-900">
-                                📍 {hosp.distance.toFixed(1)} km
-                              </p>
-                            </div>
-                          )}
-                        </div>
+                        {/* Distance Info */}
+                        {hosp.distance && (
+                          <div className="pt-3 border-t border-gray-100">
+                            <p className="text-xs text-gray-500 mb-1">Distance from Patient</p>
+                            <p className="text-lg font-bold text-gray-900">
+                              📍 {hosp.distance.toFixed(1)} km away
+                            </p>
+                          </div>
+                        )}
 
                         {/* Select Button */}
                         {!isSelected && (
